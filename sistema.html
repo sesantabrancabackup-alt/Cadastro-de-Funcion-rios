@@ -1,0 +1,1805 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Cadastro de Funcionários - Santa Branca</title>
+    
+    <!-- PWA - Android -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    
+    <!-- PWA - iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Funcionários">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        /* ✅ AJUSTE DE SCROLL GLOBAL */
+        html, body {
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            margin: 0;
+        }
+        body { scroll-behavior: smooth; }
+
+        .stat-card { transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-5px); }
+        @media print { .no-print { display: none; } }
+        .pdf-container {
+            position: fixed;
+            left: -10000px;
+            top: 0;
+            width: 800px;
+            background: white;
+            z-index: -1;
+        }
+        .ficha-pdf { font-family: 'Segoe UI', Arial, sans-serif; color: #222; padding: 20px; }
+        .ficha-pdf h1 { text-align: center; color: #1e40af; font-size: 22px; margin: 0 0 4px 0; }
+        .ficha-pdf h2 { text-align: center; color: #555; font-size: 14px; font-weight: normal; margin: 0 0 20px 0; }
+        .ficha-pdf .topo { display: flex; align-items: center; gap: 24px; border-bottom: 2px solid #1e40af; padding-bottom: 16px; margin-bottom: 16px; }
+        .ficha-pdf .foto { width: 130px; height: 130px; object-fit: cover; border-radius: 50%; border: 3px solid #1e40af; }
+        .ficha-pdf .foto-vazia { width: 130px; height: 130px; border-radius: 50%; background: #e5e7eb; display: flex; align-items: center; justify-content: center; color: #9ca3af; font-size: 12px; text-align: center; border: 3px solid #1e40af; }
+        .ficha-pdf .secao { margin-top: 16px; }
+        .ficha-pdf .secao-titulo { background: #1e40af; color: white; padding: 6px 12px; font-size: 13px; font-weight: bold; border-radius: 4px; margin-bottom: 8px; }
+        .ficha-pdf table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .ficha-pdf td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+        .ficha-pdf td strong { color: #1e40af; }
+        .ficha-pdf .doc-item { display: flex; justify-content: space-between; padding: 6px 8px; border-bottom: 1px dashed #ccc; font-size: 12px; }
+        .ficha-pdf .rodape { margin-top: 24px; text-align: center; font-size: 10px; color: #888; border-top: 1px solid #ddd; padding-top: 8px; }
+    </style>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- HEADER -->
+        <div class="bg-white rounded-lg shadow p-4 mb-6">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-6">
+                    <div>
+                        <h1 class="text-2xl font-bold">📋 Sistema de Cadastro de Funcionários</h1>
+                        <p class="text-sm text-gray-600">Bem-vindo, <span id="nomeUsuario"></span></p>
+                        <p class="text-xs text-blue-600" id="statusAdmin"></p>
+                    </div>
+                    <img id="logoSantaBranca" src="https://ndvgduxdebeiyujfrups.supabase.co/storage/v1/object/public/imagens/Santa%20Branca%20Logo.png" alt="Santa Branca Logo" class="h-16 w-auto object-contain">
+                </div>
+                <div class="flex gap-2">
+                    <button id="btnExportarExcel" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">📊 Exportar Excel</button>
+                    <button id="btnExportarPDF" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">📄 Exportar PDF</button>
+                    <button id="btnLogout" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">Sair</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Botões de navegação -->
+        <div class="flex gap-2 mb-6 flex-wrap">
+            <button id="btnAbaDashboard" class="bg-purple-500 text-white px-6 py-3 rounded-lg font-semibold">📊 DASHBOARD</button>
+            <button id="btnAbaBusca" class="bg-gray-400 text-white px-6 py-3 rounded-lg font-semibold">🔍 BUSCAR FUNCIONÁRIOS</button>
+            <button id="btnAbaCadastro" class="bg-gray-400 text-white px-6 py-3 rounded-lg font-semibold">➕ NOVO CADASTRO</button>
+            <button id="btnAbaUsuarios" class="bg-gray-400 text-white px-6 py-3 rounded-lg font-semibold" style="display:none;">👥 GERENCIAR USUÁRIOS</button>
+            <button id="btnAbaAuditoria" class="bg-gray-400 text-white px-6 py-3 rounded-lg font-semibold" style="display:none;">📜 HISTÓRICO</button>
+        </div>
+
+        <!-- DASHBOARD -->
+        <div id="abaDashboard">
+            <div class="flex gap-2 mb-6">
+                <button id="btnVerLaudo" class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 shadow">
+                    <span class="text-xl">⚠️</span>
+                    VER FUNCIONÁRIOS COM LAUDO
+                    <span class="text-xl">⚠️</span>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-white rounded-lg shadow p-4 stat-card">
+                    <div class="flex items-center justify-between">
+                        <div><p class="text-gray-500 text-sm">Total Funcionários</p><p class="text-3xl font-bold" id="totalFuncionarios">0</p></div>
+                        <div class="bg-blue-100 rounded-full p-3"><span class="text-blue-600 text-xl">👥</span></div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4 stat-card">
+                    <div class="flex items-center justify-between">
+                        <div><p class="text-gray-500 text-sm">Aniversariantes do Mês</p><p class="text-3xl font-bold" id="totalAniversariantes">0</p></div>
+                        <div class="bg-pink-100 rounded-full p-3"><span class="text-pink-600 text-xl">🎂</span></div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4 stat-card">
+                    <div class="flex items-center justify-between">
+                        <div><p class="text-gray-500 text-sm">Com Laudo de Restrição</p><p class="text-3xl font-bold" id="totalLaudoSim">0</p></div>
+                        <div class="bg-red-100 rounded-full p-3"><span class="text-red-600 text-xl">⚠️</span></div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-lg shadow p-4 stat-card">
+                    <div class="flex items-center justify-between">
+                        <div><p class="text-gray-500 text-sm">Funcionários Ativos</p><p class="text-3xl font-bold" id="totalAtivos">0</p></div>
+                        <div class="bg-green-100 rounded-full p-3"><span class="text-green-600 text-xl">✅</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="bg-white rounded-lg shadow p-4"><h3 class="text-lg font-semibold mb-4">📊 Funcionários por Unidade Escolar</h3><canvas id="graficoUnidades" height="200"></canvas></div>
+                <div class="bg-white rounded-lg shadow p-4"><h3 class="text-lg font-semibold mb-4">📊 Funcionários por Cargo/Situação</h3><canvas id="graficoCargos" height="200"></canvas></div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-4">
+                <div class="flex justify-between items-center mb-4"><h3 class="text-lg font-semibold">🎂 Aniversariantes do Mês</h3><span class="text-sm text-gray-500" id="mesAtual"></span></div>
+                <div id="listaAniversariantes" class="space-y-2"><p class="text-gray-500 text-center py-4">Carregando...</p></div>
+            </div>
+        </div>
+
+        <!-- MODAL LAUDO -->
+        <div id="modalLaudo" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+            <div class="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+                <div class="flex justify-between items-center mb-4 border-b pb-3">
+                    <h3 class="text-xl font-bold text-red-600">⚠️ Funcionários com Laudo de Restrição</h3>
+                    <button onclick="fecharModalLaudo()" class="text-gray-500 text-2xl hover:text-gray-700">&times;</button>
+                </div>
+                <div id="listaLaudo" class="overflow-y-auto flex-1"></div>
+                <div class="mt-4 pt-3 border-t flex justify-end">
+                    <button onclick="fecharModalLaudo()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">Fechar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CADASTRO -->
+        <div id="abaCadastro" style="display: none;">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">➕ Cadastrar Novo Funcionário</h2>
+                <form id="formFuncionario" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><label class="block text-sm font-medium mb-1">Nome Completo *</label><input type="text" id="nomeCompleto" required class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-medium mb-1">Unidade Escolar</label><input type="text" id="unidadeEscolar" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-medium mb-1">Função</label><input type="text" id="funcao" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-medium mb-1">Endereço</label><input type="text" id="endereco" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-medium mb-1">Telefone para Contato</label><input type="text" id="telefoneContato" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-medium mb-1">Telefone para Emergências</label><input type="text" id="telefoneEmergencia" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-medium mb-1">Matrícula</label><input type="number" id="matricula" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-medium mb-1">Data de Nascimento</label><input type="date" id="dataNascimento" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-medium mb-1">Local Atual de Trabalho e Função</label><input type="text" id="localTrabalho" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-medium mb-1">Cor/Raça</label><select id="corRaca" class="w-full border p-2 rounded"><option value="">Selecione</option><option>Branca</option><option>Preta</option><option>Parda</option><option>Amarela</option><option>Indígena</option></select></div>
+                    
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium mb-1">Foto do Funcionário</label>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <div class="flex gap-2 items-center"><input type="file" id="uploadFoto" accept="image/*" class="flex-1 border p-2 rounded"><button type="button" id="btnUploadFoto" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">📤 Upload</button></div>
+                                <p class="text-xs text-gray-500 mt-1">Clique em Upload para enviar a foto para o Supabase</p>
+                                <input type="hidden" id="foto" class="w-full border p-2 rounded mt-2">
+                                <div class="mt-2"><label class="text-xs text-gray-600">OU cole o link da foto:</label><input type="url" id="fotoLink" class="w-full border p-2 rounded mt-1" placeholder="https://..."></div>
+                            </div>
+                            <div id="previewFotoCadastro" class="hidden"><img id="previewImagemCadastro" class="h-32 w-32 object-cover rounded-full border-2 border-blue-500"><button type="button" id="btnLimparPreview" class="text-red-500 text-sm mt-1">✖ Remover prévia</button></div>
+                        </div>
+                    </div>
+                    
+                    <div class="md:col-span-2 border-t pt-4">
+                        <label class="block text-lg font-semibold mb-3">📄 Documentos do Funcionário</label>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                            <select id="tipoDocumentoCadastro" class="border p-2 rounded">
+                                <option value="">Selecione o tipo</option>
+                                <option value="RG">RG</option>
+                                <option value="CPF">CPF</option>
+                                <option value="CTPS">CTPS (Carteira de Trabalho)</option>
+                                <option value="CNH">CNH</option>
+                                <option value="TITULO_ELEITOR">Título de Eleitor</option>
+                                <option value="CERTIDAO_NASCIMENTO">Certidão de Nascimento</option>
+                                <option value="CERTIDAO_CASAMENTO">Certidão de Casamento</option>
+                                <option value="COMPROVANTE_RESIDENCIA">Comprovante de Residência</option>
+                                <option value="DIPLOMA">Diploma</option>
+                                <option value="CERTIFICADO">Certificado</option>
+                                <option value="ASO">ASO (Atestado de Saúde)</option>
+                                <option value="CONTRATO_TRABALHO">Contrato de Trabalho</option>
+                                <option value="OUTRO">Outro</option>
+                            </select>
+                            <input type="text" id="descricaoDocumentoCadastro" placeholder="Descrição (opcional)" class="border p-2 rounded">
+                            <input type="file" id="arquivoDocumentoCadastro" class="border p-2 rounded">
+                        </div>
+                        <button type="button" id="btnAdicionarDocumentoCadastro" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mb-4">📎 Adicionar Documento</button>
+                        <div id="listaDocumentosCadastro" class="space-y-2">
+                            <p class="text-gray-400 text-sm">Nenhum documento adicionado. Os documentos serão salvos após o cadastro.</p>
+                        </div>
+                        <input type="hidden" id="documentosTempCadastro" value="">
+                    </div>
+                    
+                    <div><label class="block text-sm font-medium mb-1">E-mail</label><input type="email" id="email" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-medium mb-1">Laudo de Restrição</label><select id="laudoRestricao" class="w-full border p-2 rounded"><option value="">Selecione</option><option>Sim</option><option>Não</option><option>Em análise</option></select></div>
+                    <div><label class="block text-sm font-medium mb-1">Cargo/Situação</label><select id="cargoSituacao" class="w-full border p-2 rounded"><option value="">Selecione</option><option>Efetivo</option><option>Comissionado</option><option>Contratado</option><option>Estagiário</option><option>Temporário</option><option>Afastado</option></select></div>
+                    <div class="md:col-span-2"><label class="block text-sm font-medium mb-1">Observações</label><textarea id="observacoes" rows="3" class="w-full border p-2 rounded" placeholder="Informações adicionais..."></textarea></div>
+                    <button type="submit" class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600 md:col-span-2">💾 SALVAR CADASTRO</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- BUSCA -->
+        <div id="abaBusca" style="display: none;">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">🔍 Buscar Funcionários</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <input type="text" id="buscaNome" placeholder="Nome" class="border p-2 rounded">
+                    <input type="text" id="buscaUnidade" placeholder="Unidade" class="border p-2 rounded">
+                    <input type="text" id="buscaFuncao" placeholder="Função" class="border p-2 rounded">
+                    <input type="text" id="buscaEmail" placeholder="E-mail" class="border p-2 rounded">
+                </div>
+                <div class="flex gap-2 mb-6 flex-wrap">
+                    <button id="btnBuscarFunc" class="bg-blue-500 text-white px-6 py-2 rounded">🔍 BUSCAR</button>
+                    <button id="btnCarregarTodos" class="bg-green-500 text-white px-6 py-2 rounded">📋 CARREGAR TODOS</button>
+                    <button id="btnLimparBuscaFunc" class="bg-gray-500 text-white px-6 py-2 rounded">🧹 LIMPAR</button>
+                    <button id="btnExportarResultadoExcel" class="bg-emerald-600 text-white px-6 py-2 rounded hover:bg-emerald-700">📊 Excel do Resultado</button>
+                    <button id="btnExportarResultadoPDF" class="bg-orange-600 text-white px-6 py-2 rounded hover:bg-orange-700">📄 PDF do Resultado</button>
+                </div>
+                <div class="flex justify-between items-center mb-4"><h3 class="text-lg font-semibold">📊 Resultados</h3><span id="totalResultados" class="text-sm text-gray-600">0 funcionário(s)</span></div>
+                <div id="listaFuncionarios" class="space-y-4"></div>
+                <!-- Removido o loadingScroll e fimLista, pois agora carrega tudo de uma vez -->
+            </div>
+        </div>
+
+        <!-- USUÁRIOS -->
+        <div id="abaUsuarios" style="display: none;">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4"><h2 class="text-xl font-semibold">👥 Gerenciar Usuários Autorizados</h2></div>
+                <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200"><h3 class="text-md font-semibold text-blue-800 mb-2">📝 Como adicionar um novo usuário:</h3><ol class="text-sm text-blue-700 list-decimal list-inside space-y-1"><li>Acesse o Supabase Dashboard → Authentication → Users</li><li>Clique em "Add User" e crie o usuário com email e senha</li><li>Volte aqui e clique em "Adicionar" abaixo, marcando se é admin ou não</li></ol></div>
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold mb-2">Adicionar Usuário à Lista de Autorizados</h3>
+                    <div class="flex gap-2 flex-wrap items-center">
+                        <input type="email" id="novoUsuarioEmail" placeholder="E-mail do usuário" class="flex-1 border p-2 rounded min-w-[220px]">
+                        <input type="text" id="novoUsuarioNome" placeholder="Nome do usuário" class="flex-1 border p-2 rounded min-w-[220px]">
+                        <label class="flex items-center gap-2 text-sm bg-yellow-50 border border-yellow-300 px-3 py-2 rounded cursor-pointer">
+                            <input type="checkbox" id="novoUsuarioIsAdmin" class="w-4 h-4">
+                            <span>🔑 Administrador</span>
+                        </label>
+                        <button id="btnAdicionarUsuario" class="bg-green-500 text-white px-4 py-2 rounded">Adicionar</button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">⚠️ O usuário já deve ter sido criado no Supabase Auth</p>
+                </div>
+                <div><h3 class="text-lg font-semibold mb-2">Usuários Autorizados</h3><div id="listaUsuarios"></div></div>
+            </div>
+        </div>
+
+        <!-- AUDITORIA -->
+        <div id="abaAuditoria" style="display: none;">
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">📜 Histórico de Alterações</h2>
+                <div class="flex gap-2 mb-4 flex-wrap items-center">
+                    <select id="filtroAcao" class="border p-2 rounded">
+                        <option value="">Todas as ações</option>
+                        <option value="CADASTRO">➕ Cadastros</option>
+                        <option value="EDIÇÃO">✏️ Edições</option>
+                        <option value="EXCLUSÃO">🗑️ Exclusões</option>
+                    </select>
+                    <select id="filtroUsuario" class="border p-2 rounded min-w-[220px]">
+                        <option value="">Todos os usuários</option>
+                    </select>
+                    <button id="btnFiltrarHistorico" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">🔍 Filtrar</button>
+                    <button id="btnLimparHistorico" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">🧹 Limpar</button>
+                </div>
+                <div id="listaHistorico" class="space-y-3 max-h-96 overflow-y-auto">
+                    <p class="text-gray-500 text-center py-4">Carregando histórico...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DETALHES -->
+    <div id="modalDetalhes" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[85vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4 border-b pb-3">
+                <h3 class="text-xl font-bold">📋 Detalhes do Funcionário</h3>
+                <div class="flex gap-2 items-center">
+                    <button id="btnImprimirFicha" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">🖨️ Imprimir Ficha</button>
+                    <button onclick="fecharModal()" class="text-gray-500 text-2xl hover:text-gray-700">&times;</button>
+                </div>
+            </div>
+            <div id="conteudoModal" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+        </div>
+    </div>
+
+    <!-- MODAL EDIÇÃO -->
+    <div id="modalEdicao" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[85vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4 border-b pb-3">
+                <h3 class="text-xl font-bold">✏️ Editar Funcionário</h3>
+                <button onclick="fecharModalEdicao()" class="text-gray-500 text-2xl hover:text-gray-700">&times;</button>
+            </div>
+            <form id="formEdicao" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input type="hidden" id="editNomeOriginal">
+                <div><label class="block text-sm font-medium mb-1">Nome Completo *</label><input type="text" id="editNomeCompleto" required class="w-full border p-2 rounded"></div>
+                <div><label class="block text-sm font-medium mb-1">Unidade Escolar</label><input type="text" id="editUnidadeEscolar" class="w-full border p-2 rounded"></div>
+                <div><label class="block text-sm font-medium mb-1">Função</label><input type="text" id="editFuncao" class="w-full border p-2 rounded"></div>
+                <div><label class="block text-sm font-medium mb-1">Endereço</label><input type="text" id="editEndereco" class="w-full border p-2 rounded"></div>
+                <div><label class="block text-sm font-medium mb-1">Telefone para Contato</label><input type="text" id="editTelefoneContato" class="w-full border p-2 rounded"></div>
+                <div><label class="block text-sm font-medium mb-1">Telefone para Emergências</label><input type="text" id="editTelefoneEmergencia" class="w-full border p-2 rounded"></div>
+                <div><label class="block text-sm font-medium mb-1">Matrícula</label><input type="number" id="editMatricula" class="w-full border p-2 rounded"></div>
+                <div><label class="block text-sm font-medium mb-1">Data de Nascimento</label><input type="date" id="editDataNascimento" class="w-full border p-2 rounded"></div>
+                <div><label class="block text-sm font-medium mb-1">Local Atual de Trabalho e Função</label><input type="text" id="editLocalTrabalho" class="w-full border p-2 rounded"></div>
+                <div><label class="block text-sm font-medium mb-1">Cor/Raça</label><select id="editCorRaca" class="w-full border p-2 rounded"><option value="">Selecione</option><option>Branca</option><option>Preta</option><option>Parda</option><option>Amarela</option><option>Indígena</option></select></div>
+                
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium mb-1">Foto do Funcionário</label>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <div class="flex gap-2 items-center"><input type="file" id="editUploadFoto" accept="image/*" class="flex-1 border p-2 rounded"><button type="button" id="btnEditUploadFoto" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">📤 Upload</button></div>
+                            <p class="text-xs text-gray-500 mt-1">Clique em Upload para enviar a nova foto</p>
+                            <input type="hidden" id="editFoto" class="w-full border p-2 rounded mt-2">
+                            <div class="mt-2"><label class="text-xs text-gray-600">OU cole o link da foto:</label><input type="url" id="editFotoLink" class="w-full border p-2 rounded mt-1" placeholder="https://..."></div>
+                        </div>
+                        <div id="previewFotoEdicao" class="hidden"><img id="previewImagemEdicao" class="h-32 w-32 object-cover rounded-full border-2 border-blue-500"><button type="button" id="btnLimparPreviewEdit" class="text-red-500 text-sm mt-1">✖ Remover prévia</button></div>
+                    </div>
+                </div>
+                
+                <div class="md:col-span-2 border-t pt-4">
+                    <label class="block text-lg font-semibold mb-3">📄 Documentos do Funcionário</label>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                        <select id="tipoDocumentoEdicao" class="border p-2 rounded">
+                            <option value="">Selecione o tipo</option>
+                            <option value="RG">RG</option>
+                            <option value="CPF">CPF</option>
+                            <option value="CTPS">CTPS (Carteira de Trabalho)</option>
+                            <option value="CNH">CNH</option>
+                            <option value="TITULO_ELEITOR">Título de Eleitor</option>
+                            <option value="CERTIDAO_NASCIMENTO">Certidão de Nascimento</option>
+                            <option value="CERTIDAO_CASAMENTO">Certidão de Casamento</option>
+                            <option value="COMPROVANTE_RESIDENCIA">Comprovante de Residência</option>
+                            <option value="DIPLOMA">Diploma</option>
+                            <option value="CERTIFICADO">Certificado</option>
+                            <option value="ASO">ASO (Atestado de Saúde)</option>
+                            <option value="CONTRATO_TRABALHO">Contrato de Trabalho</option>
+                            <option value="OUTRO">Outro</option>
+                        </select>
+                        <input type="text" id="descricaoDocumentoEdicao" placeholder="Descrição (opcional)" class="border p-2 rounded">
+                        <input type="file" id="arquivoDocumentoEdicao" class="border p-2 rounded">
+                    </div>
+                    <button type="button" id="btnAdicionarDocumentoEdicao" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mb-4">📎 Adicionar Documento</button>
+                    <div id="listaDocumentosEdicao" class="space-y-2">
+                        <p class="text-gray-400 text-sm">Carregando documentos...</p>
+                    </div>
+                </div>
+                
+                <div><label class="block text-sm font-medium mb-1">E-mail</label><input type="email" id="editEmail" class="w-full border p-2 rounded"></div>
+                <div><label class="block text-sm font-medium mb-1">Laudo de Restrição</label><select id="editLaudoRestricao" class="w-full border p-2 rounded"><option value="">Selecione</option><option>Sim</option><option>Não</option><option>Em análise</option></select></div>
+                <div><label class="block text-sm font-medium mb-1">Cargo/Situação</label><select id="editCargoSituacao" class="w-full border p-2 rounded"><option value="">Selecione</option><option>Efetivo</option><option>Comissionado</option><option>Contratado</option><option>Estagiário</option><option>Temporário</option><option>Afastado</option></select></div>
+                <div class="md:col-span-2"><label class="block text-sm font-medium mb-1">Observações</label><textarea id="editObservacoes" rows="3" class="w-full border p-2 rounded" placeholder="Informações adicionais..."></textarea></div>
+                <div class="md:col-span-2 flex justify-end gap-2">
+                    <button type="button" onclick="fecharModalEdicao()" class="bg-gray-500 text-white px-4 py-2 rounded">Cancelar</button>
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">💾 SALVAR ALTERAÇÕES</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="pdf-container" id="relatorioPDF"></div>
+    <div class="pdf-container" id="fichaIndividualPDF"></div>
+
+    <script>
+        const SUPABASE_URL = 'https://ndvgduxdebeiyujfrups.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5kdmdkdXhkZWJlaXl1amZydXBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NzM4MzgsImV4cCI6MjA5MzQ0OTgzOH0.G7fWT-Ys6RLif0ce8zuHbjqbDUm6jOd8oxa9dSjPtg8';
+        
+        const supabaseSistema = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        let emailLogado = '';
+        let isAdmin = false;
+        let graficoUnidades = null;
+        let graficoCargos = null;
+        let documentosTemp = [];
+        let editArquivoSelecionado = null;
+
+        // ============================================
+        // VARIÁVEIS DE ESTADO DA BUSCA (SIMPLIFICADO)
+        // ============================================
+        let funcionariosCarregados = [];
+        let filtrosAtivos = { nome: '', unidade: '', funcao: '', email: '' };
+        let nomeFuncionarioAberto = null;
+
+        // ============================================
+        // FUNÇÕES AUXILIARES
+        // ============================================
+        function formatarData(dataISO) {
+            if (!dataISO) return '-';
+            const partes = dataISO.split('-');
+            if (partes.length !== 3) return dataISO;
+            return `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+
+        function formatarDataHora(dataISO) {
+            if (!dataISO) return '-';
+            const data = new Date(dataISO);
+            return data.toLocaleString('pt-BR');
+        }
+
+        function aguardarImagem(src) {
+            return new Promise((resolve) => {
+                if (!src) { resolve(); return; }
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
+                img.src = src;
+                setTimeout(resolve, 3000);
+            });
+        }
+
+        function escaparHtml(texto) {
+            if (texto === null || texto === undefined) return '';
+            return String(texto)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        async function registrarAuditoria(acao, nomeFuncionario, dadosAntigos = null, dadosNovos = null) {
+            try {
+                const { error } = await supabaseSistema.from('auditoria_funcionarios').insert([{
+                    acao: acao,
+                    nome_funcionario: nomeFuncionario,
+                    usuario: emailLogado,
+                    dados_antigos: dadosAntigos ? JSON.stringify(dadosAntigos) : null,
+                    dados_novos: dadosNovos ? JSON.stringify(dadosNovos) : null,
+                    data_hora: new Date().toISOString()
+                }]);
+                if (error) console.error('Erro ao registrar auditoria:', error);
+            } catch (err) { console.error('Erro ao registrar auditoria:', err); }
+        }
+
+        // ============================================
+        // FUNÇÕES DE DOCUMENTOS
+        // ============================================
+        async function uploadDocumento(arquivo, nomeFuncionario, tipoDocumento) {
+            try {
+                const extensao = arquivo.name.split('.').pop();
+                const nomeLimpo = nomeFuncionario.replace(/[^a-z0-9]/gi, '_');
+                const tipoLimpo = tipoDocumento.replace(/[^a-z0-9]/gi, '_');
+                const nomeArquivo = `${nomeLimpo}/${tipoLimpo}_${Date.now()}.${extensao}`;
+                
+                const { data, error } = await supabaseSistema.storage
+                    .from('documentos_funcionarios')
+                    .upload(nomeArquivo, arquivo, { cacheControl: '3600', upsert: false });
+                
+                if (error) throw error;
+                
+                const { data: urlData } = supabaseSistema.storage
+                    .from('documentos_funcionarios')
+                    .getPublicUrl(nomeArquivo);
+                
+                return {
+                    url: urlData.publicUrl,
+                    nome_arquivo: arquivo.name,
+                    tamanho: arquivo.size,
+                    tipo_arquivo: arquivo.type
+                };
+            } catch (error) {
+                console.error('Erro no upload:', error);
+                throw error;
+            }
+        }
+
+        async function carregarDocumentos(nomeFuncionario) {
+            try {
+                const { data, error } = await supabaseSistema
+                    .from('tblDocumentos')
+                    .select('*')
+                    .eq('cadastro_nome', nomeFuncionario)
+                    .order('data_upload', { ascending: false });
+                if (error) throw error;
+                return data || [];
+            } catch (error) {
+                console.error('Erro ao carregar documentos:', error);
+                return [];
+            }
+        }
+
+        async function excluirDocumento(documentoId) {
+            try {
+                const { error } = await supabaseSistema
+                    .from('tblDocumentos')
+                    .delete()
+                    .eq('id', documentoId);
+                if (error) throw error;
+                return true;
+            } catch (error) {
+                console.error('Erro ao excluir documento:', error);
+                return false;
+            }
+        }
+
+        // ============================================
+        // DOCUMENTOS - CADASTRO
+        // ============================================
+        function atualizarListaDocumentosCadastro() {
+            const listaDiv = document.getElementById('listaDocumentosCadastro');
+            if (documentosTemp.length === 0) {
+                listaDiv.innerHTML = '<p class="text-gray-400 text-sm">Nenhum documento adicionado. Os documentos serão salvos após o cadastro.</p>';
+                return;
+            }
+            let html = '';
+            documentosTemp.forEach((doc, index) => {
+                html += `
+                    <div class="border rounded p-3 flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xl">📄</span>
+                            <div>
+                                <p class="font-semibold">${escaparHtml(doc.tipo_documento)}</p>
+                                <p class="text-sm text-gray-600">${escaparHtml(doc.descricao || doc.nome_arquivo)}</p>
+                            </div>
+                        </div>
+                        <button onclick="removerDocumentoTemp(${index})" class="bg-red-500 text-white px-3 py-1 rounded text-sm">🗑️ Remover</button>
+                    </div>
+                `;
+            });
+            listaDiv.innerHTML = html;
+        }
+
+        window.removerDocumentoTemp = function(index) {
+            documentosTemp.splice(index, 1);
+            atualizarListaDocumentosCadastro();
+        };
+
+        document.getElementById('btnAdicionarDocumentoCadastro').onclick = async () => {
+            const tipoDocumento = document.getElementById('tipoDocumentoCadastro').value;
+            const descricao = document.getElementById('descricaoDocumentoCadastro').value;
+            const arquivo = document.getElementById('arquivoDocumentoCadastro').files[0];
+            const nomeFuncionario = document.getElementById('nomeCompleto').value;
+            
+            if (!tipoDocumento) { alert('Selecione o tipo de documento!'); return; }
+            if (!arquivo) { alert('Selecione o arquivo do documento!'); return; }
+            if (!nomeFuncionario) { alert('Preencha o Nome Completo primeiro!'); return; }
+            
+            try {
+                const dadosUpload = await uploadDocumento(arquivo, nomeFuncionario, tipoDocumento);
+                documentosTemp.push({
+                    tipo_documento: tipoDocumento,
+                    descricao: descricao,
+                    nome_arquivo: dadosUpload.nome_arquivo,
+                    url_arquivo: dadosUpload.url,
+                    tamanho_arquivo: dadosUpload.tamanho,
+                    tipo_arquivo: dadosUpload.tipo_arquivo
+                });
+                atualizarListaDocumentosCadastro();
+                document.getElementById('tipoDocumentoCadastro').value = '';
+                document.getElementById('descricaoDocumentoCadastro').value = '';
+                document.getElementById('arquivoDocumentoCadastro').value = '';
+                alert('✅ Documento adicionado! Será salvo junto com o cadastro.');
+            } catch (error) {
+                alert('❌ Erro ao adicionar documento: ' + error.message);
+            }
+        };
+
+        // ============================================
+        // DOCUMENTOS - EDIÇÃO
+        // ============================================
+        async function atualizarListaDocumentosEdicao(nomeFuncionario) {
+            const listaDiv = document.getElementById('listaDocumentosEdicao');
+            if (!nomeFuncionario) {
+                listaDiv.innerHTML = '<p class="text-gray-400 text-sm">Nome do funcionário não informado.</p>';
+                return;
+            }
+            listaDiv.innerHTML = '<p class="text-gray-400 text-sm">Carregando documentos...</p>';
+            const documentos = await carregarDocumentos(nomeFuncionario);
+            if (documentos.length === 0) {
+                listaDiv.innerHTML = '<p class="text-gray-400 text-sm">Nenhum documento cadastrado.</p>';
+                return;
+            }
+            let html = '';
+            documentos.forEach(doc => {
+                const dataUpload = new Date(doc.data_upload).toLocaleDateString('pt-BR');
+                html += `
+                    <div class="border rounded p-3 flex justify-between items-center">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-2xl">📄</span>
+                                <div>
+                                    <p class="font-semibold">${escaparHtml(doc.tipo_documento)}</p>
+                                    <p class="text-sm text-gray-600">${escaparHtml(doc.descricao || doc.nome_arquivo)}</p>
+                                    <p class="text-xs text-gray-400">Enviado em: ${dataUpload}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <a href="${doc.url_arquivo}" target="_blank" class="bg-blue-500 text-white px-3 py-1 rounded text-sm">👁️ Ver</a>
+                            <button onclick="excluirDocumentoEdicao('${doc.id}', '${nomeFuncionario.replace(/'/g, "\\'")}')" class="bg-red-500 text-white px-3 py-1 rounded text-sm">🗑️ Excluir</button>
+                        </div>
+                    </div>
+                `;
+            });
+            listaDiv.innerHTML = html;
+        }
+
+        window.excluirDocumentoEdicao = async function(documentoId, nomeFuncionario) {
+            if (!confirm('Tem certeza que deseja excluir este documento?')) return;
+            const sucesso = await excluirDocumento(documentoId);
+            if (sucesso) {
+                alert('✅ Documento excluído com sucesso!');
+                await atualizarListaDocumentosEdicao(nomeFuncionario);
+            } else {
+                alert('❌ Erro ao excluir documento!');
+            }
+        };
+
+        document.getElementById('btnAdicionarDocumentoEdicao').onclick = async () => {
+            const tipoDocumento = document.getElementById('tipoDocumentoEdicao').value;
+            const descricao = document.getElementById('descricaoDocumentoEdicao').value;
+            const arquivo = document.getElementById('arquivoDocumentoEdicao').files[0];
+            const nomeFuncionario = document.getElementById('editNomeCompleto').value;
+            
+            if (!tipoDocumento) { alert('Selecione o tipo de documento!'); return; }
+            if (!arquivo) { alert('Selecione o arquivo do documento!'); return; }
+            if (!nomeFuncionario) { alert('Nome do funcionário não informado!'); return; }
+            
+            try {
+                const dadosUpload = await uploadDocumento(arquivo, nomeFuncionario, tipoDocumento);
+                const { error } = await supabaseSistema
+                    .from('tblDocumentos')
+                    .insert([{
+                        cadastro_nome: nomeFuncionario,
+                        tipo_documento: tipoDocumento,
+                        descricao: descricao,
+                        nome_arquivo: dadosUpload.nome_arquivo,
+                        url_arquivo: dadosUpload.url,
+                        tamanho_arquivo: dadosUpload.tamanho,
+                        tipo_arquivo: dadosUpload.tipo_arquivo
+                    }]);
+                if (error) throw error;
+                document.getElementById('tipoDocumentoEdicao').value = '';
+                document.getElementById('descricaoDocumentoEdicao').value = '';
+                document.getElementById('arquivoDocumentoEdicao').value = '';
+                alert('✅ Documento adicionado com sucesso!');
+                await atualizarListaDocumentosEdicao(nomeFuncionario);
+            } catch (error) {
+                alert('❌ Erro ao adicionar documento: ' + error.message);
+            }
+        };
+
+        // ============================================
+        // FUNÇÕES DE MODAL
+        // ============================================
+        function fecharModal() {
+            document.getElementById('modalDetalhes').classList.add('hidden');
+            document.getElementById('modalDetalhes').classList.remove('flex');
+            nomeFuncionarioAberto = null;
+        }
+        function fecharModalEdicao() {
+            document.getElementById('modalEdicao').classList.add('hidden');
+            document.getElementById('modalEdicao').classList.remove('flex');
+        }
+        function fecharModalLaudo() {
+            document.getElementById('modalLaudo').classList.add('hidden');
+            document.getElementById('modalLaudo').classList.remove('flex');
+        }
+
+        // ============================================
+        // LISTAR FUNCIONÁRIOS COM LAUDO
+        // ============================================
+        async function listarFuncionariosComLaudo() {
+            const modal = document.getElementById('modalLaudo');
+            const listaDiv = document.getElementById('listaLaudo');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            listaDiv.innerHTML = '<div class="text-center py-4">⏳ Carregando funcionários...</div>';
+            
+            try {
+                const { data, error } = await supabaseSistema
+                    .from('tblCadastro')
+                    .select('*')
+                    .eq('"Laudo de Restrição"', 'Sim')
+                    .order('"Nome Completo"');
+                if (error) throw error;
+                if (!data || data.length === 0) {
+                    listaDiv.innerHTML = '<div class="text-center py-8"><p class="text-green-600 text-lg">✅ Nenhum funcionário com laudo de restrição cadastrado.</p></div>';
+                    return;
+                }
+                let html = `<div class="mb-3 p-2 bg-red-100 rounded-lg text-center font-bold text-red-700">📊 TOTAL: ${data.length} funcionário(s) com laudo de restrição</div>`;
+                html += '<p class="text-xs text-gray-500 text-center mb-3">👆 Clique no funcionário para ver a ficha completa com documentos</p>';
+                html += '<div class="space-y-3">';
+                data.forEach((func, index) => {
+                    const nomeEsc = (func['Nome Completo'] || '').replace(/'/g, "\\'");
+                    const fotoUrl = func['Foto (link da foto)'];
+                    html += `
+                        <div onclick="abrirFichaDoLaudo('${nomeEsc}')" 
+                             class="border rounded-lg p-4 hover:bg-red-50 hover:border-red-400 transition cursor-pointer group">
+                            <div class="flex items-start gap-3">
+                                <div class="bg-red-100 rounded-full w-8 h-8 flex items-center justify-center font-bold text-red-700 flex-shrink-0">${index + 1}</div>
+                                ${fotoUrl ? 
+                                    `<img src="${fotoUrl}" class="w-12 h-12 object-cover rounded-full border-2 border-red-300 flex-shrink-0" onerror="this.style.display='none'">` : 
+                                    `<div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0"><span class="text-red-500">📸</span></div>`
+                                }
+                                <div class="flex-1">
+                                    <div class="font-bold text-gray-800 text-lg group-hover:text-red-700 flex items-center gap-2">
+                                        ${escaparHtml(func['Nome Completo']) || '-'}
+                                        <span class="text-xs bg-red-500 text-white px-2 py-1 rounded-full opacity-0 group-hover:opacity-100 transition">👁️ Ver ficha</span>
+                                    </div>
+                                    <div class="text-sm text-gray-600 mt-1">📌 ${escaparHtml(func['Função']) || 'Função não informada'}</div>
+                                    <div class="text-sm text-gray-600">🏫 ${escaparHtml(func['Unidade Escolar']) || 'Unidade não informada'}</div>
+                                    <div class="text-xs text-gray-500 mt-1">📧 ${escaparHtml(func['E-mail']) || 'E-mail não informado'} | 📱 ${escaparHtml(func['Telefone para Contato']) || 'Telefone não informado'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                listaDiv.innerHTML = html;
+            } catch (error) {
+                console.error('Erro:', error);
+                listaDiv.innerHTML = '<div class="text-center py-8"><p class="text-red-500 text-lg">❌ Erro ao carregar lista de funcionários.</p></div>';
+            }
+        }
+
+        window.abrirFichaDoLaudo = async function(nome) {
+            fecharModalLaudo();
+            await verDetalhes(nome);
+        };
+
+        document.getElementById('btnVerLaudo').onclick = listarFuncionariosComLaudo;
+
+        // ============================================
+        // NAVEGAÇÃO ENTRE ABAS
+        // ============================================
+        const abaDashboard = document.getElementById('abaDashboard');
+        const abaCadastro = document.getElementById('abaCadastro');
+        const abaBusca = document.getElementById('abaBusca');
+        const abaUsuarios = document.getElementById('abaUsuarios');
+        const abaAuditoria = document.getElementById('abaAuditoria');
+        
+        const btnDashboard = document.getElementById('btnAbaDashboard');
+        const btnCadastro = document.getElementById('btnAbaCadastro');
+        const btnBusca = document.getElementById('btnAbaBusca');
+        const btnUsuarios = document.getElementById('btnAbaUsuarios');
+        const btnAuditoria = document.getElementById('btnAbaAuditoria');
+
+        async function setAba(aba) {
+            abaDashboard.style.display = 'none';
+            abaCadastro.style.display = 'none';
+            abaBusca.style.display = 'none';
+            abaUsuarios.style.display = 'none';
+            abaAuditoria.style.display = 'none';
+            
+            const btnClassDefault = 'bg-gray-400 text-white px-6 py-3 rounded-lg font-semibold';
+            const btnClassActive = 'bg-blue-500 text-white px-6 py-3 rounded-lg font-semibold';
+            
+            btnDashboard.className = btnClassDefault;
+            btnCadastro.className = btnClassDefault;
+            btnBusca.className = btnClassDefault;
+            btnUsuarios.className = btnClassDefault;
+            btnAuditoria.className = btnClassDefault;
+            
+            if (aba === 'dashboard') {
+                abaDashboard.style.display = 'block';
+                btnDashboard.className = 'bg-purple-500 text-white px-6 py-3 rounded-lg font-semibold';
+                carregarDashboard();
+            } else if (aba === 'cadastro') {
+                abaCadastro.style.display = 'block';
+                btnCadastro.className = btnClassActive;
+            } else if (aba === 'busca') {
+                abaBusca.style.display = 'block';
+                btnBusca.className = btnClassActive;
+                // ✅ Carrega todos os funcionários ao entrar na aba
+                carregarTodosFuncionarios();
+            } else if (aba === 'usuarios') {
+                abaUsuarios.style.display = 'block';
+                btnUsuarios.className = btnClassActive;
+                carregarUsuarios();
+            } else if (aba === 'auditoria') {
+                abaAuditoria.style.display = 'block';
+                btnAuditoria.className = btnClassActive;
+                await carregarUsuariosDoHistorico();
+                await carregarHistorico('', '');
+            }
+        }
+
+        btnDashboard.onclick = () => setAba('dashboard');
+        btnCadastro.onclick = () => setAba('cadastro');
+        btnBusca.onclick = () => setAba('busca');
+        btnUsuarios.onclick = () => setAba('usuarios');
+        btnAuditoria.onclick = () => setAba('auditoria');
+
+        // ============================================
+        // AUTENTICAÇÃO (admins dinâmicos)
+        // ============================================
+        async function verificarAuth() {
+            const { data: { session } } = await supabaseSistema.auth.getSession();
+            if (!session) { window.location.href = 'index.html'; return; }
+            emailLogado = session.user.email;
+            document.getElementById('nomeUsuario').innerHTML = emailLogado;
+            
+            try {
+                const { data, error } = await supabaseSistema
+                    .from('usuarios_autorizados')
+                    .select('is_admin, nome')
+                    .eq('email', emailLogado)
+                    .maybeSingle();
+                
+                if (error) {
+                    console.error('Erro ao verificar admin:', error);
+                    isAdmin = false;
+                } else {
+                    isAdmin = data?.is_admin === true;
+                }
+            } catch (err) {
+                console.error('Erro inesperado ao verificar admin:', err);
+                isAdmin = false;
+            }
+            
+            if (isAdmin) {
+                document.getElementById('statusAdmin').innerHTML = '🔑 Administrador';
+                btnUsuarios.style.display = 'inline-block';
+                btnAuditoria.style.display = 'inline-block';
+            } else {
+                document.getElementById('statusAdmin').innerHTML = '👤 Usuário autorizado';
+                btnUsuarios.style.display = 'none';
+                btnAuditoria.style.display = 'none';
+            }
+        }
+
+        document.getElementById('btnLogout').onclick = async () => { 
+            await supabaseSistema.auth.signOut(); 
+            window.location.href = 'index.html'; 
+        };
+
+        // ============================================
+        // DASHBOARD
+        // ============================================
+        async function carregarDashboard() {
+            const { data, error } = await supabaseSistema.from('tblCadastro').select('*');
+            if (error) { console.error('Erro ao carregar dashboard:', error); return; }
+            
+            document.getElementById('totalFuncionarios').innerHTML = data.length;
+            
+            const aniversariantes = data.filter(f => {
+                if (!f['Data de Nascimento']) return false;
+                const mesAniversario = parseInt(f['Data de Nascimento'].split('-')[1]);
+                const mesAtual = new Date().getMonth() + 1;
+                return mesAniversario === mesAtual;
+            });
+            document.getElementById('totalAniversariantes').innerHTML = aniversariantes.length;
+            
+            const laudoSim = data.filter(f => f['Laudo de Restrição'] === 'Sim').length;
+            document.getElementById('totalLaudoSim').innerHTML = laudoSim;
+            
+            const ativos = data.filter(f => {
+                const cargo = f['Cargo/Situação'];
+                return cargo && cargo !== 'Afastado';
+            }).length;
+            document.getElementById('totalAtivos').innerHTML = ativos;
+            
+            const unidades = {};
+            data.forEach(f => {
+                const unidade = f['Unidade Escolar'] || 'Não informada';
+                unidades[unidade] = (unidades[unidade] || 0) + 1;
+            });
+            const labelsUnidades = Object.keys(unidades);
+            const dadosUnidades = Object.values(unidades);
+            
+            if (graficoUnidades) graficoUnidades.destroy();
+            const ctxUnidades = document.getElementById('graficoUnidades').getContext('2d');
+            graficoUnidades = new Chart(ctxUnidades, {
+                type: 'bar',
+                data: { labels: labelsUnidades, datasets: [{ label: 'Funcionários', data: dadosUnidades, backgroundColor: '#3b82f6' }] },
+                options: { responsive: true, maintainAspectRatio: true }
+            });
+            
+            const cargos = {};
+            data.forEach(f => {
+                const cargo = f['Cargo/Situação'] || 'Não informado';
+                cargos[cargo] = (cargos[cargo] || 0) + 1;
+            });
+            const labelsCargos = Object.keys(cargos);
+            const dadosCargos = Object.values(cargos);
+            
+            if (graficoCargos) graficoCargos.destroy();
+            const ctxCargos = document.getElementById('graficoCargos').getContext('2d');
+            graficoCargos = new Chart(ctxCargos, {
+                type: 'pie',
+                data: { labels: labelsCargos, datasets: [{ data: dadosCargos, backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec489a'] }] },
+                options: { responsive: true, maintainAspectRatio: true }
+            });
+            
+            const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+            const mesAtual = new Date().getMonth();
+            document.getElementById('mesAtual').innerHTML = meses[mesAtual];
+            
+            if (aniversariantes.length === 0) {
+                document.getElementById('listaAniversariantes').innerHTML = '<p class="text-gray-500 text-center py-4">Nenhum aniversariante este mês</p>';
+            } else {
+                let html = '<div class="grid grid-cols-1 md:grid-cols-2 gap-2">';
+                aniversariantes.sort((a, b) => {
+                    const diaA = parseInt(a['Data de Nascimento'].split('-')[2]);
+                    const diaB = parseInt(b['Data de Nascimento'].split('-')[2]);
+                    return diaA - diaB;
+                }).forEach(f => {
+                    const dataNasc = formatarData(f['Data de Nascimento']);
+                    const hoje = new Date();
+                    const diaAniversario = parseInt(f['Data de Nascimento'].split('-')[2]);
+                    const diaHoje = hoje.getDate();
+                    const destaque = diaAniversario === diaHoje ? 'bg-green-100 border-green-400' : 'bg-pink-50';
+                    html += `<div class="${destaque} p-3 rounded-lg flex justify-between items-center"><div><span class="font-semibold">${escaparHtml(f['Nome Completo'])}</span><br><span class="text-sm text-gray-600">${escaparHtml(f['Função']) || '-'}</span></div><div class="text-right"><span class="text-lg">🎂</span><br><span class="text-sm font-bold">${dataNasc}</span></div></div>`;
+                });
+                html += '</div>';
+                document.getElementById('listaAniversariantes').innerHTML = html;
+            }
+        }
+
+        // ============================================
+        // UPLOAD DE FOTO
+        // ============================================
+        async function uploadFoto(arquivo, nomeBase) {
+            const { data: { session } } = await supabaseSistema.auth.getSession();
+            if (!session) throw new Error('Usuário não autenticado');
+            const extensao = arquivo.name.split('.').pop();
+            const userEmail = session.user.email.replace(/[^a-z0-9]/gi, '_');
+            const nomeArquivo = `${userEmail}/${nomeBase.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}.${extensao}`;
+            const { data, error } = await supabaseSistema.storage.from('fotos_funcionarios').upload(nomeArquivo, arquivo, { cacheControl: '3600', upsert: false });
+            if (error) throw new Error(error.message);
+            const { data: urlData } = supabaseSistema.storage.from('fotos_funcionarios').getPublicUrl(nomeArquivo);
+            return urlData.publicUrl;
+        }
+
+        // ============================================
+        // BUSCA - NOVA LÓGICA (CARREGA TUDO DE UMA VEZ)
+        // ============================================
+        function aplicarFiltrosQuery(query) {
+            if (filtrosAtivos.nome) query = query.ilike('"Nome Completo"', `%${filtrosAtivos.nome}%`);
+            if (filtrosAtivos.unidade) query = query.ilike('"Unidade Escolar"', `%${filtrosAtivos.unidade}%`);
+            if (filtrosAtivos.funcao) query = query.ilike('"Função"', `%${filtrosAtivos.funcao}%`);
+            if (filtrosAtivos.email) query = query.ilike('"E-mail"', `%${filtrosAtivos.email}%`);
+            return query;
+        }
+
+        // Função principal que carrega todos os funcionários de uma vez
+        async function carregarTodosFuncionarios() {
+            const container = document.getElementById('listaFuncionarios');
+            const totalSpan = document.getElementById('totalResultados');
+            
+            // Mostra um feedback de carregamento
+            container.innerHTML = '<div class="text-center py-8 text-gray-500">⏳ Carregando todos os funcionários...</div>';
+            totalSpan.innerHTML = 'Carregando...';
+
+            try {
+                let query = supabaseSistema.from('tblCadastro').select('*');
+                query = aplicarFiltrosQuery(query);
+                // Ordena alfabeticamente
+                query = query.order('"Nome Completo"');
+                
+                // Executa a query SEM LIMITE de linhas
+                const { data, error, count } = await query;
+                
+                if (error) throw error;
+
+                funcionariosCarregados = data || [];
+                
+                // Renderiza todos os funcionários
+                renderizarFuncionarios();
+                
+                // Atualiza o contador
+                totalSpan.innerHTML = `${funcionariosCarregados.length} funcionário(s) encontrado(s)`;
+
+            } catch (err) {
+                console.error('Erro ao carregar funcionários:', err);
+                container.innerHTML = `<p class="text-red-500 text-center py-8">❌ Erro ao carregar funcionários: ${err.message}</p>`;
+                totalSpan.innerHTML = 'Erro';
+            }
+        }
+
+        function montarCardFuncionario(f) {
+            const nomeEsc = (f['Nome Completo'] || '').replace(/'/g, "\\'");
+            const fotoUrl = f['Foto (link da foto)'];
+            const dataNascimento = formatarData(f['Data de Nascimento']);
+            
+            const btnExcluir = isAdmin 
+                ? `<button onclick='excluirFuncionario("${nomeEsc}")' class="bg-red-500 text-white px-3 py-1 rounded">Excluir</button>` 
+                : '';
+            
+            return `<div class="border rounded-lg p-4 hover:shadow"><div class="flex justify-between items-start"><div class="flex gap-4">${fotoUrl ? `<img src="${fotoUrl}" class="h-16 w-16 object-cover rounded-full" onerror="this.style.display='none'">` : '<div class="h-16 w-16 bg-gray-200 rounded-full flex items-center justify-center"><span class="text-gray-400">📸</span></div>'}<div><h3 class="font-bold text-lg">${escaparHtml(f['Nome Completo']) || '-'}</h3><p class="text-gray-600">${escaparHtml(f['Função']) || '-'} | ${escaparHtml(f['Unidade Escolar']) || '-'}</p><p class="text-sm text-gray-500">📧 ${escaparHtml(f['E-mail']) || '-'} | 📱 ${escaparHtml(f['Telefone para Contato']) || '-'} | 🎂 ${dataNascimento}</p></div></div><div class="flex gap-2 flex-wrap"><button onclick='verDetalhes("${nomeEsc}")' class="bg-blue-500 text-white px-3 py-1 rounded">Ver</button><button onclick='abrirEdicao("${nomeEsc}")' class="bg-yellow-500 text-white px-3 py-1 rounded">✏️ Editar</button>${btnExcluir}</div></div></div>`;
+        }
+
+        function renderizarFuncionarios() {
+            const container = document.getElementById('listaFuncionarios');
+            if (funcionariosCarregados.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-500 py-8">Nenhum funcionário encontrado</p>';
+                return;
+            }
+            container.innerHTML = funcionariosCarregados.map(montarCardFuncionario).join('');
+        }
+
+        // ============================================
+        // EVENTOS DE BUSCA
+        // ============================================
+        document.getElementById('btnBuscarFunc').onclick = () => {
+            filtrosAtivos = {
+                nome: document.getElementById('buscaNome').value.trim(),
+                unidade: document.getElementById('buscaUnidade').value.trim(),
+                funcao: document.getElementById('buscaFuncao').value.trim(),
+                email: document.getElementById('buscaEmail').value.trim()
+            };
+            carregarTodosFuncionarios();
+        };
+
+        document.getElementById('btnCarregarTodos').onclick = () => {
+            filtrosAtivos = { nome: '', unidade: '', funcao: '', email: '' };
+            document.getElementById('buscaNome').value = '';
+            document.getElementById('buscaUnidade').value = '';
+            document.getElementById('buscaFuncao').value = '';
+            document.getElementById('buscaEmail').value = '';
+            carregarTodosFuncionarios();
+        };
+
+        document.getElementById('btnLimparBuscaFunc').onclick = () => {
+            filtrosAtivos = { nome: '', unidade: '', funcao: '', email: '' };
+            document.getElementById('buscaNome').value = '';
+            document.getElementById('buscaUnidade').value = '';
+            document.getElementById('buscaFuncao').value = '';
+            document.getElementById('buscaEmail').value = '';
+            carregarTodosFuncionarios();
+        };
+
+        // ============================================
+        // VER DETALHES
+        // ============================================
+        window.verDetalhes = async function(nome) {
+            const { data } = await supabaseSistema.from('tblCadastro').select('*').eq('"Nome Completo"', nome).single();
+            if (!data) return;
+            
+            nomeFuncionarioAberto = nome;
+            const fotoUrl = data['Foto (link da foto)'];
+            const dataNascimento = formatarData(data['Data de Nascimento']);
+            const documentos = await carregarDocumentos(nome);
+            
+            let html = `
+                <div class="md:col-span-1 flex flex-col items-center">
+                    ${fotoUrl ? `<img src="${fotoUrl}" class="w-48 h-48 object-cover rounded-full border-4 border-blue-500 shadow-lg" onerror="this.src='https://via.placeholder.com/192?text=Sem+Foto'">` : `<div class="w-48 h-48 bg-gray-200 rounded-full flex items-center justify-center border-4 border-gray-300"><span class="text-gray-400 text-center">📸<br>Sem foto</span></div>`}
+                    <h3 class="text-xl font-bold mt-4 text-center">${escaparHtml(data['Nome Completo']) || '-'}</h3>
+                    <p class="text-gray-600 text-center">${escaparHtml(data['Função']) || '-'}</p>
+                </div>
+                <div class="md:col-span-2">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="bg-gray-50 p-3 rounded"><strong>Unidade Escolar:</strong><br>${escaparHtml(data['Unidade Escolar']) || '-'}</div>
+                        <div class="bg-gray-50 p-3 rounded"><strong>Matrícula:</strong><br>${escaparHtml(data['Matrícula']) || '-'}</div>
+                        <div class="bg-gray-50 p-3 rounded"><strong>Endereço:</strong><br>${escaparHtml(data['Endereço']) || '-'}</div>
+                        <div class="bg-gray-50 p-3 rounded"><strong>Telefone Contato:</strong><br>${escaparHtml(data['Telefone para Contato']) || '-'}</div>
+                        <div class="bg-gray-50 p-3 rounded"><strong>Telefone Emergência:</strong><br>${escaparHtml(data['Telefone para Emergências']) || '-'}</div>
+                        <div class="bg-gray-50 p-3 rounded"><strong>Data Nascimento:</strong><br>${dataNascimento}</div>
+                        <div class="bg-gray-50 p-3 rounded"><strong>Local Trabalho:</strong><br>${escaparHtml(data['Local Atual de Trabalho e Função']) || '-'}</div>
+                        <div class="bg-gray-50 p-3 rounded"><strong>Cor/Raça:</strong><br>${escaparHtml(data['Cor/Raça']) || '-'}</div>
+                        <div class="bg-gray-50 p-3 rounded"><strong>E-mail:</strong><br>${escaparHtml(data['E-mail']) || '-'}</div>
+                        <div class="bg-gray-50 p-3 rounded"><strong>Laudo Restrição:</strong><br>${escaparHtml(data['Laudo de Restrição']) || '-'}</div>
+                        <div class="bg-gray-50 p-3 rounded"><strong>Cargo/Situação:</strong><br>${escaparHtml(data['Cargo/Situação']) || '-'}</div>
+                        <div class="bg-gray-50 p-3 rounded md:col-span-2"><strong>Observações:</strong><br>${escaparHtml(data['Observações']) || '-'}</div>
+                    </div>
+                    
+                    <div class="mt-6 border-t pt-4">
+                        <h4 class="text-lg font-semibold mb-3">📄 Documentos (${documentos.length})</h4>
+                        <div class="space-y-2">
+                            ${documentos.length > 0 ? documentos.map(doc => {
+                                const dataUpload = new Date(doc.data_upload).toLocaleDateString('pt-BR');
+                                return `
+                                    <div class="border rounded p-3 flex justify-between items-center">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xl">📄</span>
+                                            <div>
+                                                <p class="font-semibold">${escaparHtml(doc.tipo_documento)}</p>
+                                                <p class="text-sm text-gray-600">${escaparHtml(doc.descricao || doc.nome_arquivo)}</p>
+                                                <p class="text-xs text-gray-400">Enviado em: ${dataUpload}</p>
+                                            </div>
+                                        </div>
+                                        <a href="${doc.url_arquivo}" target="_blank" class="bg-blue-500 text-white px-3 py-1 rounded text-sm">👁️ Ver</a>
+                                    </div>
+                                `;
+                            }).join('') : '<p class="text-gray-400 text-sm">Nenhum documento cadastrado.</p>'}
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('conteudoModal').innerHTML = html;
+            document.getElementById('modalDetalhes').classList.remove('hidden');
+            document.getElementById('modalDetalhes').classList.add('flex');
+        };
+
+        // ============================================
+        // IMPRIMIR FICHA INDIVIDUAL (PDF)
+        // ============================================
+        document.getElementById('btnImprimirFicha').onclick = async () => {
+            if (!nomeFuncionarioAberto) { alert('Nenhum funcionário aberto!'); return; }
+            
+            const { data } = await supabaseSistema.from('tblCadastro').select('*').eq('"Nome Completo"', nomeFuncionarioAberto).single();
+            if (!data) { alert('Erro ao carregar dados do funcionário.'); return; }
+            
+            const documentos = await carregarDocumentos(nomeFuncionarioAberto);
+            const fotoUrl = data['Foto (link da foto)'];
+            const dataNascimento = formatarData(data['Data de Nascimento']);
+            const hoje = new Date().toLocaleString('pt-BR');
+            
+            const linha = (label, valor) => `<tr><td style="width:35%;"><strong>${label}</strong></td><td>${escaparHtml(valor) || '-'}</td></tr>`;
+            
+            let html = `
+                <div class="ficha-pdf">
+                    <h1>📋 FICHA DO FUNCIONÁRIO</h1>
+                    <h2>Secretaria Municipal de Santa Branca</h2>
+                    
+                    <div class="topo">
+                        ${fotoUrl 
+                            ? `<img src="${fotoUrl}" class="foto" crossorigin="anonymous">` 
+                            : `<div class="foto-vazia">Sem<br>foto</div>`}
+                        <div style="flex:1;">
+                            <h3 style="margin:0 0 8px 0;font-size:18px;color:#1e40af;">${escaparHtml(data['Nome Completo']) || '-'}</h3>
+                            <p style="margin:4px 0;font-size:13px;color:#555;"><strong>Função:</strong> ${escaparHtml(data['Função']) || '-'}</p>
+                            <p style="margin:4px 0;font-size:13px;color:#555;"><strong>Unidade:</strong> ${escaparHtml(data['Unidade Escolar']) || '-'}</p>
+                            <p style="margin:4px 0;font-size:13px;color:#555;"><strong>Matrícula:</strong> ${escaparHtml(data['Matrícula']) || '-'}</p>
+                            <p style="margin:4px 0;font-size:13px;color:#555;"><strong>Situação:</strong> ${escaparHtml(data['Cargo/Situação']) || '-'}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="secao">
+                        <div class="secao-titulo">📌 DADOS PESSOAIS</div>
+                        <table>
+                            ${linha('Data de Nascimento', dataNascimento)}
+                            ${linha('Cor/Raça', data['Cor/Raça'])}
+                            ${linha('E-mail', data['E-mail'])}
+                            ${linha('Endereço', data['Endereço'])}
+                        </table>
+                    </div>
+                    
+                    <div class="secao">
+                        <div class="secao-titulo">📞 CONTATOS</div>
+                        <table>
+                            ${linha('Telefone para Contato', data['Telefone para Contato'])}
+                            ${linha('Telefone para Emergências', data['Telefone para Emergências'])}
+                        </table>
+                    </div>
+                    
+                    <div class="secao">
+                        <div class="secao-titulo">💼 DADOS FUNCIONAIS</div>
+                        <table>
+                            ${linha('Local Atual de Trabalho', data['Local Atual de Trabalho e Função'])}
+                            ${linha('Cargo/Situação', data['Cargo/Situação'])}
+                            ${linha('Laudo de Restrição', data['Laudo de Restrição'])}
+                        </table>
+                    </div>
+                    
+                    <div class="secao">
+                        <div class="secao-titulo">📝 OBSERVAÇÕES</div>
+                        <div style="padding:8px;font-size:12px;border:1px solid #e5e7eb;border-radius:4px;min-height:40px;">${escaparHtml(data['Observações']) || 'Sem observações.'}</div>
+                    </div>
+                    
+                    <div class="secao">
+                        <div class="secao-titulo">📄 DOCUMENTOS ANEXADOS (${documentos.length})</div>
+                        ${documentos.length > 0 
+                            ? documentos.map(doc => `
+                                <div class="doc-item">
+                                    <span><strong>${escaparHtml(doc.tipo_documento)}</strong> — ${escaparHtml(doc.descricao || doc.nome_arquivo)}</span>
+                                    <span style="color:#888;font-size:10px;">${new Date(doc.data_upload).toLocaleDateString('pt-BR')}</span>
+                                </div>
+                            `).join('')
+                            : '<p style="font-size:12px;color:#888;padding:8px;">Nenhum documento anexado.</p>'}
+                    </div>
+                    
+                    <div class="rodape">
+                        Documento gerado em ${hoje} — Sistema de Cadastro de Funcionários
+                    </div>
+                </div>
+            `;
+            
+            const div = document.getElementById('fichaIndividualPDF');
+            div.innerHTML = html;
+            
+            if (fotoUrl) {
+                await aguardarImagem(fotoUrl);
+            }
+            await new Promise(r => setTimeout(r, 300));
+            
+            const nomeArquivoSeguro = (data['Nome Completo'] || 'funcionario').replace(/[^a-z0-9]/gi, '_');
+            
+            try {
+                const canvas = await html2canvas(div, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: false,
+                    logging: false,
+                    backgroundColor: '#ffffff',
+                    width: div.scrollWidth,
+                    height: div.scrollHeight,
+                    windowWidth: div.scrollWidth,
+                    windowHeight: div.scrollHeight
+                });
+                
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({
+                    unit: 'mm',
+                    format: 'a4',
+                    orientation: 'portrait'
+                });
+                
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                const imgWidth = pdfWidth - 20;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                
+                let heightLeft = imgHeight;
+                let position = 10;
+                
+                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                
+                pdf.addImage(imgData, 'JPEG', 10, position, imgWidth, imgHeight);
+                heightLeft -= (pdfHeight - 20);
+                
+                while (heightLeft > 0) {
+                    position = heightLeft - imgHeight + 10;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'JPEG', 10, position, imgWidth, imgHeight);
+                    heightLeft -= (pdfHeight - 20);
+                }
+                
+                pdf.save(`Ficha_${nomeArquivoSeguro}_${new Date().toISOString().split('T')[0]}.pdf`);
+            } catch (err) {
+                console.error('Erro ao gerar PDF:', err);
+                alert('❌ Erro ao gerar PDF: ' + err.message);
+            } finally {
+                div.innerHTML = '';
+            }
+        };
+
+        // ============================================
+        // EXCLUIR FUNCIONÁRIO (SOMENTE ADMIN)
+        // ============================================
+        window.excluirFuncionario = async function(nome) {
+            if (!isAdmin) {
+                alert('❌ Apenas administradores podem excluir funcionários!');
+                return;
+            }
+            if (!confirm(`Tem certeza que deseja excluir "${nome}"? Esta ação não pode ser desfeita!`)) return;
+            
+            const { data: dadosAntigos } = await supabaseSistema.from('tblCadastro').select('*').eq('"Nome Completo"', nome).single();
+            const { error } = await supabaseSistema.from('tblCadastro').delete().eq('"Nome Completo"', nome);
+            if (error) { alert('Erro: ' + error.message); return; }
+            
+            await registrarAuditoria('EXCLUSÃO', nome, dadosAntigos, null);
+            alert('✅ Funcionário excluído com sucesso!');
+            carregarTodosFuncionarios();
+            carregarDashboard();
+        };
+
+        // ============================================
+        // EDIÇÃO DE FUNCIONÁRIO
+        // ============================================
+        window.abrirEdicao = async function(nome) {
+            const { data, error } = await supabaseSistema.from('tblCadastro').select('*').eq('"Nome Completo"', nome).single();
+            if (error) { alert('Erro ao carregar dados: ' + error.message); return; }
+            if (!data) { alert('Funcionário não encontrado!'); return; }
+            
+            document.getElementById('editNomeOriginal').value = nome;
+            document.getElementById('editNomeCompleto').value = data['Nome Completo'] || '';
+            document.getElementById('editUnidadeEscolar').value = data['Unidade Escolar'] || '';
+            document.getElementById('editFuncao').value = data['Função'] || '';
+            document.getElementById('editEndereco').value = data['Endereço'] || '';
+            document.getElementById('editTelefoneContato').value = data['Telefone para Contato'] || '';
+            document.getElementById('editTelefoneEmergencia').value = data['Telefone para Emergências'] || '';
+            document.getElementById('editMatricula').value = data['Matrícula'] || '';
+            document.getElementById('editDataNascimento').value = data['Data de Nascimento'] || '';
+            document.getElementById('editLocalTrabalho').value = data['Local Atual de Trabalho e Função'] || '';
+            document.getElementById('editCorRaca').value = data['Cor/Raça'] || '';
+            document.getElementById('editFoto').value = data['Foto (link da foto)'] || '';
+            document.getElementById('editFotoLink').value = data['Foto (link da foto)'] || '';
+            document.getElementById('editEmail').value = data['E-mail'] || '';
+            document.getElementById('editLaudoRestricao').value = data['Laudo de Restrição'] || '';
+            document.getElementById('editCargoSituacao').value = data['Cargo/Situação'] || '';
+            document.getElementById('editObservacoes').value = data['Observações'] || '';
+            
+            const fotoUrl = data['Foto (link da foto)'];
+            const previewDiv = document.getElementById('previewFotoEdicao');
+            const previewImg = document.getElementById('previewImagemEdicao');
+            if (fotoUrl) {
+                previewImg.src = fotoUrl;
+                previewDiv.classList.remove('hidden');
+            } else {
+                previewDiv.classList.add('hidden');
+            }
+            
+            await atualizarListaDocumentosEdicao(nome);
+            
+            document.getElementById('modalEdicao').classList.remove('hidden');
+            document.getElementById('modalEdicao').classList.add('flex');
+        };
+
+        document.getElementById('editUploadFoto').addEventListener('change', (e) => {
+            editArquivoSelecionado = e.target.files[0];
+            if (editArquivoSelecionado) {
+                const preview = document.getElementById('previewImagemEdicao');
+                const previewDiv = document.getElementById('previewFotoEdicao');
+                const reader = new FileReader();
+                reader.onload = (e) => { preview.src = e.target.result; previewDiv.classList.remove('hidden'); };
+                reader.readAsDataURL(editArquivoSelecionado);
+            }
+        });
+
+        document.getElementById('btnEditUploadFoto').onclick = async () => {
+            if (!editArquivoSelecionado) { alert('Selecione uma foto primeiro!'); return; }
+            const nomeCompleto = document.getElementById('editNomeCompleto').value;
+            if (!nomeCompleto) { alert('Preencha o Nome Completo primeiro!'); return; }
+            try {
+                const url = await uploadFoto(editArquivoSelecionado, nomeCompleto);
+                document.getElementById('editFoto').value = url;
+                document.getElementById('editFotoLink').value = url;
+                alert('✅ Foto enviada com sucesso!');
+            } catch (error) { alert('Erro no upload: ' + error.message); }
+        };
+
+        document.getElementById('btnLimparPreviewEdit').onclick = () => {
+            document.getElementById('previewFotoEdicao').classList.add('hidden');
+            document.getElementById('editUploadFoto').value = '';
+            editArquivoSelecionado = null;
+        };
+
+        document.getElementById('editFotoLink').addEventListener('change', (e) => {
+            const link = e.target.value;
+            if (link) {
+                document.getElementById('editFoto').value = link;
+                const preview = document.getElementById('previewImagemEdicao');
+                const previewDiv = document.getElementById('previewFotoEdicao');
+                preview.src = link;
+                previewDiv.classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('formEdicao').onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const nomeOriginal = document.getElementById('editNomeOriginal').value;
+            const fotoUrl = document.getElementById('editFoto').value || document.getElementById('editFotoLink').value;
+            
+            const { data: dadosAntigos } = await supabaseSistema.from('tblCadastro').select('*').eq('"Nome Completo"', nomeOriginal).single();
+            
+            const dadosNovos = {
+                "Nome Completo": document.getElementById('editNomeCompleto').value,
+                "Unidade Escolar": document.getElementById('editUnidadeEscolar').value || null,
+                "Função": document.getElementById('editFuncao').value || null,
+                "Endereço": document.getElementById('editEndereco').value || null,
+                "Telefone para Contato": document.getElementById('editTelefoneContato').value || null,
+                "Telefone para Emergências": document.getElementById('editTelefoneEmergencia').value || null,
+                "Matrícula": document.getElementById('editMatricula').value ? parseFloat(document.getElementById('editMatricula').value) : null,
+                "Data de Nascimento": document.getElementById('editDataNascimento').value || null,
+                "Local Atual de Trabalho e Função": document.getElementById('editLocalTrabalho').value || null,
+                "Cor/Raça": document.getElementById('editCorRaca').value || null,
+                "Foto (link da foto)": fotoUrl || null,
+                "E-mail": document.getElementById('editEmail').value || null,
+                "Laudo de Restrição": document.getElementById('editLaudoRestricao').value || null,
+                "Cargo/Situação": document.getElementById('editCargoSituacao').value || null,
+                "Observações": document.getElementById('editObservacoes').value || null
+            };
+            
+            const nomeMudou = nomeOriginal !== dadosNovos['Nome Completo'];
+            
+            const { error } = await supabaseSistema
+                .from('tblCadastro')
+                .update(dadosNovos)
+                .eq('"Nome Completo"', nomeOriginal);
+            
+            if (error) { alert('❌ Erro ao atualizar: ' + error.message); return; }
+            
+            if (nomeMudou) {
+                await supabaseSistema
+                    .from('tblDocumentos')
+                    .update({ cadastro_nome: dadosNovos['Nome Completo'] })
+                    .eq('cadastro_nome', nomeOriginal);
+            }
+            
+            await registrarAuditoria('EDIÇÃO', dadosNovos['Nome Completo'], dadosAntigos, dadosNovos);
+            alert('✅ Funcionário atualizado com sucesso!');
+            fecharModalEdicao();
+            carregarTodosFuncionarios();
+            carregarDashboard();
+        };
+
+        // ============================================
+        // USUÁRIOS (com is_admin)
+        // ============================================
+        async function carregarUsuarios() {
+            const { data, error } = await supabaseSistema.from('usuarios_autorizados').select('*').order('nome');
+            if (error) { console.error('Erro ao carregar usuários:', error); return; }
+            const lista = document.getElementById('listaUsuarios');
+            if (!data || data.length === 0) { lista.innerHTML = '<p class="text-gray-400">Nenhum usuário autorizado cadastrado.</p>'; return; }
+            let html = '<div class="space-y-2">';
+            data.forEach(u => {
+                const badge = u.is_admin 
+                    ? '<span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">🔑 Admin</span>'
+                    : '<span class="bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded">👤 Usuário</span>';
+                
+                const btnRemover = u.email === emailLogado
+                    ? '<span class="text-xs text-gray-400 italic">(você)</span>'
+                    : `<button onclick="removerUsuario('${u.email}')" class="bg-red-500 text-white px-3 py-1 rounded text-sm">Remover</button>`;
+                
+                const btnToggle = u.email === emailLogado
+                    ? ''
+                    : `<button onclick="toggleAdmin('${u.email}', ${u.is_admin})" class="bg-yellow-500 text-white px-3 py-1 rounded text-sm">${u.is_admin ? '⬇️ Rebaixar' : '⬆️ Promover'}</button>`;
+                
+                html += `<div class="border p-3 rounded flex justify-between items-center gap-2">
+                    <div class="flex-1"><strong>${escaparHtml(u.nome)}</strong><br><span class="text-sm text-gray-600">${escaparHtml(u.email)}</span></div>
+                    <div class="flex gap-2 items-center">${badge}${btnToggle}${btnRemover}</div>
+                </div>`;
+            });
+            html += '</div>';
+            lista.innerHTML = html;
+        }
+
+        document.getElementById('btnAdicionarUsuario').onclick = async () => {
+            const email = document.getElementById('novoUsuarioEmail').value.trim();
+            const nome = document.getElementById('novoUsuarioNome').value.trim();
+            const is_admin = document.getElementById('novoUsuarioIsAdmin').checked;
+            
+            if (!email || !nome) { alert('Preencha email e nome!'); return; }
+            
+            const { error } = await supabaseSistema.from('usuarios_autorizados').insert([{ email, nome, is_admin }]);
+            if (error) { alert('Erro: ' + error.message); return; }
+            
+            document.getElementById('novoUsuarioEmail').value = '';
+            document.getElementById('novoUsuarioNome').value = '';
+            document.getElementById('novoUsuarioIsAdmin').checked = false;
+            alert('✅ Usuário adicionado!');
+            carregarUsuarios();
+        };
+
+        window.removerUsuario = async function(email) {
+            if (!confirm(`Remover usuário ${email}?`)) return;
+            const { error } = await supabaseSistema.from('usuarios_autorizados').delete().eq('email', email);
+            if (error) { alert('Erro: ' + error.message); return; }
+            carregarUsuarios();
+        };
+
+        window.toggleAdmin = async function(email, isAdminAtual) {
+            const acao = isAdminAtual ? 'rebaixar para usuário comum' : 'promover a administrador';
+            if (!confirm(`Deseja ${acao} o usuário ${email}?`)) return;
+            
+            const { error } = await supabaseSistema
+                .from('usuarios_autorizados')
+                .update({ is_admin: !isAdminAtual })
+                .eq('email', email);
+            
+            if (error) { alert('Erro: ' + error.message); return; }
+            alert('✅ Permissão atualizada!');
+            carregarUsuarios();
+        };
+
+        // ============================================
+        // AUDITORIA
+        // ============================================
+        async function carregarUsuariosDoHistorico() {
+            const select = document.getElementById('filtroUsuario');
+            try {
+                const { data, error } = await supabaseSistema
+                    .from('auditoria_funcionarios')
+                    .select('usuario');
+                if (error) { console.error(error); return; }
+                
+                const usuariosUnicos = [...new Set((data || []).map(u => u.usuario).filter(Boolean))].sort();
+                const valorAtual = select.value;
+                let html = '<option value="">Todos os usuários</option>';
+                usuariosUnicos.forEach(u => { html += `<option value="${u}">${u}</option>`; });
+                select.innerHTML = html;
+                if (valorAtual && usuariosUnicos.includes(valorAtual)) select.value = valorAtual;
+            } catch (err) { console.error(err); }
+        }
+
+        async function carregarHistorico(filtroAcao = '', filtroUsuario = '') {
+            const lista = document.getElementById('listaHistorico');
+            lista.innerHTML = '<p class="text-gray-500 text-center py-4">⏳ Carregando histórico...</p>';
+            
+            try {
+                let query = supabaseSistema.from('auditoria_funcionarios').select('*').order('data_hora', { ascending: false });
+                if (filtroAcao) query = query.eq('acao', filtroAcao);
+                if (filtroUsuario) query = query.eq('usuario', filtroUsuario);
+                const { data, error } = await query.limit(100);
+                if (error) throw error;
+                
+                if (!data || data.length === 0) {
+                    lista.innerHTML = '<p class="text-gray-400 text-center py-4">Nenhum registro encontrado.</p>';
+                    return;
+                }
+                
+                const cores = {
+                    'CADASTRO': 'bg-green-100 text-green-800',
+                    'EDIÇÃO': 'bg-yellow-100 text-yellow-800',
+                    'EXCLUSÃO': 'bg-red-100 text-red-800'
+                };
+                const icones = { 'CADASTRO': '➕', 'EDIÇÃO': '✏️', 'EXCLUSÃO': '🗑️' };
+                
+                let html = `<div class="mb-3 p-2 bg-blue-50 rounded-lg text-center text-sm font-semibold text-blue-700">📊 ${data.length} registro(s)</div>`;
+                data.forEach(h => {
+                    html += `
+                        <div class="border p-3 rounded mb-2">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <span class="px-2 py-1 rounded text-sm font-bold ${cores[h.acao] || 'bg-gray-100 text-gray-800'}">
+                                        ${icones[h.acao] || ''} ${escaparHtml(h.acao) || 'N/A'}
+                                    </span>
+                                    <span class="ml-2 font-bold">${escaparHtml(h.nome_funcionario) || '-'}</span>
+                                </div>
+                                <span class="text-xs text-gray-500">${formatarDataHora(h.data_hora)}</span>
+                            </div>
+                            <div class="text-sm text-gray-600 mt-1">👤 ${escaparHtml(h.usuario) || 'N/A'}</div>
+                        </div>
+                    `;
+                });
+                lista.innerHTML = html;
+            } catch (err) {
+                console.error(err);
+                lista.innerHTML = `<p class="text-red-500 text-center py-4">❌ Erro: ${err.message}</p>`;
+            }
+        }
+
+        document.getElementById('btnFiltrarHistorico').onclick = () => {
+            carregarHistorico(document.getElementById('filtroAcao').value, document.getElementById('filtroUsuario').value);
+        };
+        document.getElementById('btnLimparHistorico').onclick = () => {
+            document.getElementById('filtroAcao').value = '';
+            document.getElementById('filtroUsuario').value = '';
+            carregarHistorico('', '');
+        };
+
+        // ============================================
+        // EXPORTAR — TODOS
+        // ============================================
+        document.getElementById('btnExportarExcel').onclick = async () => {
+            const { data, error } = await supabaseSistema.from('tblCadastro').select('*').order('"Nome Completo"');
+            if (error) { alert('Erro: ' + error.message); return; }
+            if (data.length === 0) { alert('Nenhum dado para exportar!'); return; }
+            exportarExcel(data, 'Funcionarios_Completo');
+        };
+
+        document.getElementById('btnExportarPDF').onclick = async () => {
+            const { data, error } = await supabaseSistema.from('tblCadastro').select('*').order('"Nome Completo"');
+            if (error) { alert('Erro: ' + error.message); return; }
+            if (data.length === 0) { alert('Nenhum dado para exportar!'); return; }
+            exportarPDF(data, 'Relatorio_Completo');
+        };
+
+        // ============================================
+        // EXPORTAR — RESULTADO ATUAL (com filtros aplicados)
+        // ============================================
+        document.getElementById('btnExportarResultadoExcel').onclick = async () => {
+            try {
+                let query = supabaseSistema.from('tblCadastro').select('*');
+                query = aplicarFiltrosQuery(query);
+                query = query.order('"Nome Completo"');
+                const { data, error } = await query;
+                if (error) throw error;
+                if (!data || data.length === 0) { alert('Nenhum resultado para exportar!'); return; }
+                exportarExcel(data, 'Funcionarios_Filtrado');
+            } catch (err) {
+                alert('❌ Erro: ' + err.message);
+            }
+        };
+
+        document.getElementById('btnExportarResultadoPDF').onclick = async () => {
+            try {
+                let query = supabaseSistema.from('tblCadastro').select('*');
+                query = aplicarFiltrosQuery(query);
+                query = query.order('"Nome Completo"');
+                const { data, error } = await query;
+                if (error) throw error;
+                if (!data || data.length === 0) { alert('Nenhum resultado para exportar!'); return; }
+                exportarPDF(data, 'Relatorio_Filtrado');
+            } catch (err) {
+                alert('❌ Erro: ' + err.message);
+            }
+        };
+
+        function exportarExcel(data, prefixoArquivo) {
+            const dadosExport = data.map(f => {
+                const novo = { ...f };
+                if (novo['Data de Nascimento']) novo['Data de Nascimento'] = formatarData(novo['Data de Nascimento']);
+                return novo;
+            });
+            
+            const ws = XLSX.utils.json_to_sheet(dadosExport);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Funcionários');
+            const colunas = Object.keys(dadosExport[0] || {});
+            ws['!cols'] = colunas.map(c => ({ wch: Math.max(c.length * 2, 15) }));
+            XLSX.writeFile(wb, `${prefixoArquivo}_${new Date().toISOString().split('T')[0]}.xlsx`);
+            alert('✅ Excel exportado com sucesso!');
+        }
+
+        async function exportarPDF(data, prefixoArquivo) {
+            let html = `<div style="padding:20px;background:white;">
+                <h1 style="text-align:center;font-size:24px;margin-bottom:20px;">📋 Relatório de Funcionários</h1>
+                <p style="text-align:center;color:#666;">Gerado em ${new Date().toLocaleString('pt-BR')}</p>
+                <p style="text-align:center;color:#666;">Total: ${data.length} funcionários</p>
+                <hr>
+                <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:20px;">
+                    <thead><tr>`;
+            const cabecalhos = ['Nome Completo', 'Unidade Escolar', 'Função', 'E-mail', 'Telefone para Contato', 'Cargo/Situação'];
+            cabecalhos.forEach(c => { html += `<th style="border:1px solid #999;padding:6px;background:#f0f0f0;">${c}</th>`; });
+            html += '</tr></thead><tbody>';
+            data.forEach(f => {
+                html += '<tr>';
+                cabecalhos.forEach(c => {
+                    html += `<td style="border:1px solid #ccc;padding:5px;">${escaparHtml(f[c]) || '-'}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table></div>';
+            
+            const div = document.getElementById('relatorioPDF');
+            div.innerHTML = html;
+            
+            await new Promise(r => setTimeout(r, 300));
+            
+            try {
+                const canvas = await html2canvas(div, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: false,
+                    logging: false,
+                    backgroundColor: '#ffffff',
+                    width: div.scrollWidth,
+                    height: div.scrollHeight,
+                    windowWidth: div.scrollWidth,
+                    windowHeight: div.scrollHeight
+                });
+                
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({
+                    unit: 'mm',
+                    format: 'a4',
+                    orientation: 'landscape'
+                });
+                
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                const imgWidth = pdfWidth - 20;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                
+                let heightLeft = imgHeight;
+                let position = 10;
+                
+                const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                
+                pdf.addImage(imgData, 'JPEG', 10, position, imgWidth, imgHeight);
+                heightLeft -= (pdfHeight - 20);
+                
+                while (heightLeft > 0) {
+                    position = heightLeft - imgHeight + 10;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'JPEG', 10, position, imgWidth, imgHeight);
+                    heightLeft -= (pdfHeight - 20);
+                }
+                
+                pdf.save(`${prefixoArquivo}_${new Date().toISOString().split('T')[0]}.pdf`);
+            } catch (err) {
+                console.error('Erro ao gerar PDF:', err);
+                alert('❌ Erro ao gerar PDF: ' + err.message);
+            } finally {
+                div.innerHTML = '';
+            }
+        }
+
+        // ============================================
+        // FOTO - CADASTRO
+        // ============================================
+        let arquivoSelecionado = null;
+        document.getElementById('uploadFoto').addEventListener('change', (e) => {
+            arquivoSelecionado = e.target.files[0];
+            if (arquivoSelecionado) {
+                const preview = document.getElementById('previewImagemCadastro');
+                const previewDiv = document.getElementById('previewFotoCadastro');
+                const reader = new FileReader();
+                reader.onload = (e) => { preview.src = e.target.result; previewDiv.classList.remove('hidden'); };
+                reader.readAsDataURL(arquivoSelecionado);
+            }
+        });
+
+        document.getElementById('btnUploadFoto').onclick = async () => {
+            if (!arquivoSelecionado) { alert('Selecione uma foto primeiro!'); return; }
+            const nomeCompleto = document.getElementById('nomeCompleto').value;
+            if (!nomeCompleto) { alert('Preencha o Nome Completo primeiro!'); return; }
+            try {
+                const url = await uploadFoto(arquivoSelecionado, nomeCompleto);
+                document.getElementById('foto').value = url;
+                document.getElementById('fotoLink').value = '';
+                alert('✅ Foto enviada com sucesso!');
+            } catch (error) { alert('Erro no upload: ' + error.message); }
+        };
+
+        document.getElementById('btnLimparPreview').onclick = () => {
+            document.getElementById('previewFotoCadastro').classList.add('hidden');
+            document.getElementById('uploadFoto').value = '';
+            arquivoSelecionado = null;
+        };
+
+        document.getElementById('fotoLink').addEventListener('change', (e) => {
+            const link = e.target.value;
+            if (link) {
+                document.getElementById('foto').value = link;
+                const preview = document.getElementById('previewImagemCadastro');
+                const previewDiv = document.getElementById('previewFotoCadastro');
+                preview.src = link;
+                previewDiv.classList.remove('hidden');
+            }
+        });
+
+        // ============================================
+        // CADASTRO - SUBMIT
+        // ============================================
+        document.getElementById('formFuncionario').onsubmit = async (e) => {
+            e.preventDefault();
+            let fotoUrl = document.getElementById('foto').value;
+            const fotoLink = document.getElementById('fotoLink').value;
+            if (fotoLink && !fotoUrl) fotoUrl = fotoLink;
+            
+            const nomeCompleto = document.getElementById('nomeCompleto').value;
+            
+            const dados = {
+                "Nome Completo": nomeCompleto,
+                "Unidade Escolar": document.getElementById('unidadeEscolar').value || null,
+                "Função": document.getElementById('funcao').value || null,
+                "Endereço": document.getElementById('endereco').value || null,
+                "Telefone para Contato": document.getElementById('telefoneContato').value || null,
+                "Telefone para Emergências": document.getElementById('telefoneEmergencia').value || null,
+                "Matrícula": document.getElementById('matricula').value ? parseFloat(document.getElementById('matricula').value) : null,
+                "Data de Nascimento": document.getElementById('dataNascimento').value || null,
+                "Local Atual de Trabalho e Função": document.getElementById('localTrabalho').value || null,
+                "Cor/Raça": document.getElementById('corRaca').value || null,
+                "Foto (link da foto)": fotoUrl || null,
+                "E-mail": document.getElementById('email').value || null,
+                "Laudo de Restrição": document.getElementById('laudoRestricao').value || null,
+                "Cargo/Situação": document.getElementById('cargoSituacao').value || null,
+                "Observações": document.getElementById('observacoes').value || null
+            };
+            
+            const { error } = await supabaseSistema.from('tblCadastro').insert([dados]);
+            if (error) { alert('❌ Erro: ' + error.message); return; }
+            
+            if (documentosTemp.length > 0) {
+                for (const doc of documentosTemp) {
+                    await supabaseSistema.from('tblDocumentos').insert([{
+                        cadastro_nome: nomeCompleto,
+                        tipo_documento: doc.tipo_documento,
+                        descricao: doc.descricao,
+                        nome_arquivo: doc.nome_arquivo,
+                        url_arquivo: doc.url_arquivo,
+                        tamanho_arquivo: doc.tamanho_arquivo,
+                        tipo_arquivo: doc.tipo_arquivo
+                    }]);
+                }
+            }
+            
+            await registrarAuditoria('CADASTRO', nomeCompleto, null, dados);
+            alert('✅ Cadastrado com sucesso!');
+            document.getElementById('formFuncionario').reset();
+            document.getElementById('previewFotoCadastro').classList.add('hidden');
+            document.getElementById('foto').value = '';
+            arquivoSelecionado = null;
+            documentosTemp = [];
+            atualizarListaDocumentosCadastro();
+            carregarDashboard();
+        };
+
+        // ============================================
+        // INICIALIZAÇÃO
+        // ============================================
+        async function init() {
+            await verificarAuth();
+            setAba('dashboard');
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+
+    <!-- PWA - Registro do Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(() => console.log('✅ PWA: Service Worker registrado'))
+                    .catch(err => console.error('❌ PWA: Erro ao registrar Service Worker', err));
+            });
+        }
+
+        window.addEventListener('appinstalled', () => {
+            console.log('✅ PWA: App instalado com sucesso!');
+        });
+    </script>
+</body>
+</html>
