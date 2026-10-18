@@ -155,7 +155,25 @@
                 <h2 class="text-xl font-semibold mb-4">➕ Cadastrar Novo Funcionário</h2>
                 <form id="formFuncionario" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div><label class="block text-sm font-medium mb-1">Nome Completo *</label><input type="text" id="nomeCompleto" required class="w-full border p-2 rounded"></div>
-                    <div><label class="block text-sm font-medium mb-1">Unidade Escolar</label><input type="text" id="unidadeEscolar" class="w-full border p-2 rounded"></div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Unidade Escolar</label>
+                        <select id="unidadeEscolar" class="w-full border p-2 rounded">
+                            <option value="">Selecione</option>
+                            <option value="AEE - Atendimento Educacional Especializado">AEE - Atendimento Educacional Especializado</option>
+                            <option value="Creche Municipal “Estudante Renato Cabral Pereira”">Creche Municipal “Estudante Renato Cabral Pereira”</option>
+                            <option value="Creche Municipal “Vereador Benedito Cantinho Braga Filho”">Creche Municipal “Vereador Benedito Cantinho Braga Filho”</option>
+                            <option value="E.M.E.F &quot;Prof.ª Benedita Pereira de Albuquerque&quot;">E.M.E.F "Prof.ª Benedita Pereira de Albuquerque"</option>
+                            <option value="E.M.E.F. &quot;Barão de Santa Branca&quot;">E.M.E.F. "Barão de Santa Branca"</option>
+                            <option value="E.M.E.F. &quot;Prof.ª Francisca Rosa Gomes&quot;">E.M.E.F. "Prof.ª Francisca Rosa Gomes"</option>
+                            <option value="E.M.E.F. &quot;Prof.ª Isaura Martins Rosa de Siqueira&quot;">E.M.E.F. "Prof.ª Isaura Martins Rosa de Siqueira"</option>
+                            <option value="E.M.E.F. &quot;Prof.ª Palmyra Martins Rosa Perillo&quot;">E.M.E.F. "Prof.ª Palmyra Martins Rosa Perillo"</option>
+                            <option value="E.M.E.I. &quot;Terezinha do Menino Jesus Porto Wuó&quot;">E.M.E.I. "Terezinha do Menino Jesus Porto Wuó"</option>
+                            <option value="E.M.E.I.F. (R) &quot;Prof.ª Maria Apparecida Fonseca&quot;">E.M.E.I.F. (R) "Prof.ª Maria Apparecida Fonseca"</option>
+                            <option value="E.M.E.I.F. (R) &quot;Prof.ª Sylvia Cantinho Braga Campos&quot;">E.M.E.I.F. (R) "Prof.ª Sylvia Cantinho Braga Campos"</option>
+                            <option value="Garagem Escolar">Garagem Escolar</option>
+                            <option value="Secretaria Municipal de Educação">Secretaria Municipal de Educação</option>
+                        </select>
+                    </div>
                     <div><label class="block text-sm font-medium mb-1">Função</label><input type="text" id="funcao" class="w-full border p-2 rounded"></div>
                     <div><label class="block text-sm font-medium mb-1">Endereço</label><input type="text" id="endereco" class="w-full border p-2 rounded"></div>
                     <div><label class="block text-sm font-medium mb-1">Telefone para Contato</label><input type="text" id="telefoneContato" class="w-full border p-2 rounded"></div>
@@ -308,7 +326,25 @@
             <form id="formEdicao" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input type="hidden" id="editNomeOriginal">
                 <div><label class="block text-sm font-medium mb-1">Nome Completo *</label><input type="text" id="editNomeCompleto" required class="w-full border p-2 rounded"></div>
-                <div><label class="block text-sm font-medium mb-1">Unidade Escolar</label><input type="text" id="editUnidadeEscolar" class="w-full border p-2 rounded"></div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Unidade Escolar</label>
+                    <select id="editUnidadeEscolar" class="w-full border p-2 rounded">
+                        <option value="">Selecione</option>
+                        <option value="AEE - Atendimento Educacional Especializado">AEE - Atendimento Educacional Especializado</option>
+                        <option value="Creche Municipal “Estudante Renato Cabral Pereira”">Creche Municipal “Estudante Renato Cabral Pereira”</option>
+                        <option value="Creche Municipal “Vereador Benedito Cantinho Braga Filho”">Creche Municipal “Vereador Benedito Cantinho Braga Filho”</option>
+                        <option value="E.M.E.F &quot;Prof.ª Benedita Pereira de Albuquerque&quot;">E.M.E.F "Prof.ª Benedita Pereira de Albuquerque"</option>
+                        <option value="E.M.E.F. &quot;Barão de Santa Branca&quot;">E.M.E.F. "Barão de Santa Branca"</option>
+                        <option value="E.M.E.F. &quot;Prof.ª Francisca Rosa Gomes&quot;">E.M.E.F. "Prof.ª Francisca Rosa Gomes"</option>
+                        <option value="E.M.E.F. &quot;Prof.ª Isaura Martins Rosa de Siqueira&quot;">E.M.E.F. "Prof.ª Isaura Martins Rosa de Siqueira"</option>
+                        <option value="E.M.E.F. &quot;Prof.ª Palmyra Martins Rosa Perillo&quot;">E.M.E.F. "Prof.ª Palmyra Martins Rosa Perillo"</option>
+                        <option value="E.M.E.I. &quot;Terezinha do Menino Jesus Porto Wuó&quot;">E.M.E.I. "Terezinha do Menino Jesus Porto Wuó"</option>
+                        <option value="E.M.E.I.F. (R) &quot;Prof.ª Maria Apparecida Fonseca&quot;">E.M.E.I.F. (R) "Prof.ª Maria Apparecida Fonseca"</option>
+                        <option value="E.M.E.I.F. (R) &quot;Prof.ª Sylvia Cantinho Braga Campos&quot;">E.M.E.I.F. (R) "Prof.ª Sylvia Cantinho Braga Campos"</option>
+                        <option value="Garagem Escolar">Garagem Escolar</option>
+                        <option value="Secretaria Municipal de Educação">Secretaria Municipal de Educação</option>
+                    </select>
+                </div>
                 <div><label class="block text-sm font-medium mb-1">Função</label><input type="text" id="editFuncao" class="w-full border p-2 rounded"></div>
                 <div><label class="block text-sm font-medium mb-1">Endereço</label><input type="text" id="editEndereco" class="w-full border p-2 rounded"></div>
                 <div><label class="block text-sm font-medium mb-1">Telefone para Contato</label><input type="text" id="editTelefoneContato" class="w-full border p-2 rounded"></div>
@@ -1264,7 +1300,6 @@
             
             document.getElementById('editNomeOriginal').value = nome;
             document.getElementById('editNomeCompleto').value = data['Nome Completo'] || '';
-            document.getElementById('editUnidadeEscolar').value = data['Unidade Escolar'] || '';
             document.getElementById('editFuncao').value = data['Função'] || '';
             document.getElementById('editEndereco').value = data['Endereço'] || '';
             document.getElementById('editTelefoneContato').value = data['Telefone para Contato'] || '';
@@ -1279,6 +1314,23 @@
             document.getElementById('editLaudoRestricao').value = data['Laudo de Restrição'] || '';
             document.getElementById('editCargoSituacao').value = data['Cargo/Situação'] || '';
             document.getElementById('editObservacoes').value = data['Observações'] || '';
+            
+            // Preenche o select de Unidade Escolar (com fallback para cadastros antigos)
+            const selectUnidade = document.getElementById('editUnidadeEscolar');
+            // Remove opções antigas de "valor antigo" para não acumular
+            Array.from(selectUnidade.options).forEach(opt => {
+                if (opt.dataset.legado === 'true') opt.remove();
+            });
+            const unidadeValor = data['Unidade Escolar'] || '';
+            selectUnidade.value = unidadeValor;
+            if (unidadeValor && selectUnidade.value !== unidadeValor) {
+                const opt = document.createElement('option');
+                opt.value = unidadeValor;
+                opt.textContent = unidadeValor + ' (valor antigo)';
+                opt.dataset.legado = 'true';
+                selectUnidade.appendChild(opt);
+                selectUnidade.value = unidadeValor;
+            }
             
             const fotoUrl = data['Foto (link da foto)'];
             const previewDiv = document.getElementById('previewFotoEdicao');
