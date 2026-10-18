@@ -68,7 +68,7 @@
                         <p class="text-sm text-gray-600">Bem-vindo, <span id="nomeUsuario"></span></p>
                         <p class="text-xs text-blue-600" id="statusAdmin"></p>
                     </div>
-                    <img id="logoSantaBranca" src="https://lklqwzdzcuknjsowarvz.supabase.co/storage/v1/object/public/imagens/Santa%20Branca%20Logo.png" alt="Santa Branca Logo" class="h-16 w-auto object-contain">
+                    <img id="logoSantaBranca" src="https://ndvgduxdebeiyujfrups.supabase.co/storage/v1/object/public/imagens/Santa%20Branca%20Logo.png" alt="Santa Branca Logo" class="h-16 w-auto object-contain">
                 </div>
                 <div class="flex gap-2">
                     <button id="btnExportarExcel" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">📊 Exportar Excel</button>
@@ -235,7 +235,6 @@
                 </div>
                 <div class="flex justify-between items-center mb-4"><h3 class="text-lg font-semibold">📊 Resultados</h3><span id="totalResultados" class="text-sm text-gray-600">0 funcionário(s)</span></div>
                 <div id="listaFuncionarios" class="space-y-4"></div>
-                <!-- Removido o loadingScroll e fimLista, pois agora carrega tudo de uma vez -->
             </div>
         </div>
 
@@ -377,10 +376,10 @@
 
     <script>
         // ============================================
-        // ⚠️ CONFIGURAÇÃO SUPABASE - AJUSTADA PARA O MESMO PROJETO DO INDEX.HTML
+        // ⚠️ CONFIGURAÇÃO SUPABASE - PROJETO ANTIGO (conforme index.html)
         // ============================================
-        const SUPABASE_URL = 'https://lklqwzdzcuknjsowarvz.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_zmY4GOyhHbBVgyAK7vpXhw_8M-Y3XHP';
+        const SUPABASE_URL = 'https://ndvgduxdebeiyujfrups.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5kdmdkdXhkZWJlaXl1amZydXBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NzM4MzgsImV4cCI6MjA5MzQ0OTgzOH0.G7fWT-Ys6RLif0ce8zuHbjqbDUm6jOd8oxa9dSjPtg8';
         
         const supabaseSistema = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         let emailLogado = '';
@@ -779,7 +778,6 @@
             } else if (aba === 'busca') {
                 abaBusca.style.display = 'block';
                 btnBusca.className = btnClassActive;
-                // ✅ Carrega todos os funcionários ao entrar na aba
                 carregarTodosFuncionarios();
             } else if (aba === 'usuarios') {
                 abaUsuarios.style.display = 'block';
@@ -951,32 +949,24 @@
             return query;
         }
 
-        // Função principal que carrega todos os funcionários de uma vez
         async function carregarTodosFuncionarios() {
             const container = document.getElementById('listaFuncionarios');
             const totalSpan = document.getElementById('totalResultados');
             
-            // Mostra um feedback de carregamento
             container.innerHTML = '<div class="text-center py-8 text-gray-500">⏳ Carregando todos os funcionários...</div>';
             totalSpan.innerHTML = 'Carregando...';
 
             try {
                 let query = supabaseSistema.from('tblCadastro').select('*');
                 query = aplicarFiltrosQuery(query);
-                // Ordena alfabeticamente
                 query = query.order('"Nome Completo"');
                 
-                // Executa a query SEM LIMITE de linhas
                 const { data, error, count } = await query;
                 
                 if (error) throw error;
 
                 funcionariosCarregados = data || [];
-                
-                // Renderiza todos os funcionários
                 renderizarFuncionarios();
-                
-                // Atualiza o contador
                 totalSpan.innerHTML = `${funcionariosCarregados.length} funcionário(s) encontrado(s)`;
 
             } catch (err) {
