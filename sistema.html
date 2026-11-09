@@ -68,7 +68,8 @@
                         <p class="text-sm text-gray-600">Bem-vindo, <span id="nomeUsuario"></span></p>
                         <p class="text-xs text-blue-600" id="statusAdmin"></p>
                     </div>
-                    <img id="logoSantaBranca" src="https://ndvgduxdebeiyujfrups.supabase.co/storage/v1/object/public/imagens/Santa%20Branca%20Logo.png" alt="Santa Branca Logo" class="h-16 w-auto object-contain">
+                    <!-- ✅ URL DO LOGO CORRIGIDA PARA O PROJETO NOVO -->
+                    <img id="logoSantaBranca" src="https://lklqwzdzcuknjsowarvz.supabase.co/storage/v1/object/public/imagens/Santa%20Branca%20Logo.png" alt="Santa Branca Logo" class="h-16 w-auto object-contain">
                 </div>
                 <div class="flex gap-2">
                     <button id="btnExportarExcel" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">📊 Exportar Excel</button>
@@ -412,7 +413,7 @@
 
     <script>
         // ============================================
-        // ⚠️ CONFIGURAÇÃO SUPABASE - PROJETO ANTIGO (conforme index.html)
+        // ⚠️ CONFIGURAÇÃO SUPABASE
         // ============================================
         const SUPABASE_URL = 'https://lklqwzdzcuknjsowarvz.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_zmY4GOyhHbBVgyAK7vpXhw_8M-Y3XHP';
@@ -475,7 +476,7 @@
                 const { error } = await supabaseSistema.from('auditoria_funcionarios').insert([{
                     acao: acao,
                     nome_funcionario: nomeFuncionario,
-                    usuario: emailLogado,
+                    usuario: emailLogado || 'Sistema (sem login)',
                     dados_antigos: dadosAntigos ? JSON.stringify(dadosAntigos) : null,
                     dados_novos: dadosNovos ? JSON.stringify(dadosNovos) : null,
                     data_hora: new Date().toISOString()
