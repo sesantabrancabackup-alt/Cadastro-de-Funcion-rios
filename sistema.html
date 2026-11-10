@@ -417,28 +417,6 @@
         let filtrosAtivos = { nome: '', unidade: '', funcao: '', email: '' };
         let nomeFuncionarioAberto = null;
 
-        // NOVA FUNÇÃO: Garante que a URL da foto esteja correta baseada no novo projeto
-        function obterUrlFoto(caminhoFoto) {
-            if (!caminhoFoto) return null;
-            
-            // Se o link já estiver completo e for do projeto novo, usa ele
-            if (caminhoFoto.startsWith('http') && caminhoFoto.includes('lklqwzdzcuknjsowarvz')) {
-                return caminhoFoto;
-            }
-            
-            // Se for um link completo do projeto antigo, pega só o nome do arquivo/pasta no final
-            let caminhoLimpo = caminhoFoto;
-            if (caminhoFoto.startsWith('http')) {
-                const partes = caminhoFoto.split('/fotos_funcionarios/');
-                if (partes.length > 1) {
-                    caminhoLimpo = partes[1];
-                }
-            }
-            
-            // Monta a URL correta com o ID do projeto novo
-            return `https://lklqwzdzcuknjsowarvz.supabase.co/storage/v1/object/public/fotos_funcionarios/${caminhoLimpo}`;
-        }
-
         function podeVerDocumentos() {
             return isAdmin || emailLogado === 'sesantabranca@gmail.com';
         }
@@ -737,7 +715,7 @@
                 html += '<div class="space-y-3">';
                 data.forEach((func, index) => {
                     const nomeEsc = (func['Nome Completo'] || '').replace(/'/g, "\\'");
-                    const fotoUrl = obterUrlFoto(func['Foto (link da foto)']);
+                    const fotoUrl = func['Foto (link da foto)'];
                     html += `
                         <div onclick="abrirFichaDoLaudo('${nomeEsc}')" 
                              class="border rounded-lg p-4 hover:bg-red-50 hover:border-red-400 transition cursor-pointer group">
@@ -1040,17 +1018,16 @@
 
         function montarCardFuncionario(f) {
             const nomeEsc = (f['Nome Completo'] || '').replace(/'/g, "\\'");
-            const fotoUrl = obterUrlFoto(f['Foto (link da foto)']); // USA A FUNÇÃO QUE GERA O LINK CORRETO
+            const fotoUrl = f['Foto (link da foto)'];
             const dataNascimento = formatarData(f['Data de Nascimento']);
             
             const btnExcluir = isAdmin 
                 ? `<button onclick='excluirFuncionario("${nomeEsc}")' class="bg-red-500 text-white px-3 py-1 rounded">Excluir</button>` 
                 : '';
             
-            // Se a imagem falhar, esconde a imagem quebrada e mostra o ícone de câmera
             const imgHtml = fotoUrl 
-                ? `<div class="h-16 w-16 relative flex-shrink-0"><img src="${fotoUrl}" loading="lazy" class="h-16 w-16 object-cover rounded-full" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="absolute inset-0 bg-gray-200 rounded-full hidden items-center justify-center"><span class="text-gray-400 text-xl">📸</span></div></div>` 
-                : '<div class="h-16 w-16 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0"><span class="text-gray-400 text-xl">📸</span></div>';
+                ? `<img src="${fotoUrl}" loading="lazy" class="h-16 w-16 object-cover rounded-full" onerror="this.style.display='none'">` 
+                : '<div class="h-16 w-16 bg-gray-200 rounded-full flex items-center justify-center"><span class="text-gray-400">📸</span></div>';
 
             return `<div class="border rounded-lg p-4 hover:shadow"><div class="flex justify-between items-start"><div class="flex gap-4">${imgHtml}<div><h3 class="font-bold text-lg">${escaparHtml(f['Nome Completo']) || '-'}</h3><p class="text-gray-600">${escaparHtml(f['Função']) || '-'} | ${escaparHtml(f['Unidade Escolar']) || '-'}</p><p class="text-sm text-gray-500">📧 ${escaparHtml(f['E-mail']) || '-'} | 📱 ${escaparHtml(f['Telefone para Contato']) || '-'} | 🎂 ${dataNascimento}</p></div></div><div class="flex gap-2 flex-wrap"><button onclick='verDetalhes("${nomeEsc}")' class="bg-blue-500 text-white px-3 py-1 rounded">Ver</button><button onclick='abrirEdicao("${nomeEsc}")' class="bg-yellow-500 text-white px-3 py-1 rounded">✏️ Editar</button>${btnExcluir}</div></div></div>`;
         }
@@ -1097,7 +1074,7 @@
             if (!data) return;
             
             nomeFuncionarioAberto = nome;
-            const fotoUrl = obterUrlFoto(data['Foto (link da foto)']); // USA A FUNÇÃO AQUI TAMBÉM
+            const fotoUrl = data['Foto (link da foto)'];
             const dataNascimento = formatarData(data['Data de Nascimento']);
             
             let documentos = [];
@@ -1107,7 +1084,7 @@
             
             let html = `
                 <div class="md:col-span-1 flex flex-col items-center">
-                    ${fotoUrl ? `<div class="w-48 h-48 relative"><img src="${fotoUrl}" class="w-48 h-48 object-cover rounded-full border-4 border-blue-500 shadow-lg" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="absolute inset-0 bg-gray-200 rounded-full hidden items-center justify-center border-4 border-gray-300"><span class="text-gray-400 text-center">📸<br>Sem foto</span></div></div>` : `<div class="w-48 h-48 bg-gray-200 rounded-full flex items-center justify-center border-4 border-gray-300"><span class="text-gray-400 text-center">📸<br>Sem foto</span></div>`}
+                    ${fotoUrl ? `<img src="${fotoUrl}" loading="lazy" class="w-48 h-48 object-cover rounded-full border-4 border-blue-500 shadow-lg" onerror="this.src='https://via.placeholder.com/192?text=Sem+Foto'">` : `<div class="w-48 h-48 bg-gray-200 rounded-full flex items-center justify-center border-4 border-gray-300"><span class="text-gray-400 text-center">📸<br>Sem foto</span></div>`}
                     <h3 class="text-xl font-bold mt-4 text-center">${escaparHtml(data['Nome Completo']) || '-'}</h3>
                     <p class="text-gray-600 text-center">${escaparHtml(data['Função']) || '-'}</p>
                 </div>
@@ -1172,7 +1149,7 @@
                 documentos = await carregarDocumentos(nomeFuncionarioAberto);
             }
             
-            const fotoUrl = obterUrlFoto(data['Foto (link da foto)']); // USA A FUNÇÃO AQUI TAMBÉM
+            const fotoUrl = data['Foto (link da foto)'];
             const dataNascimento = formatarData(data['Data de Nascimento']);
             const hoje = new Date().toLocaleString('pt-BR');
             
@@ -1360,7 +1337,7 @@
                 selectUnidade.value = unidadeValor;
             }
             
-            const fotoUrl = obterUrlFoto(data['Foto (link da foto)']); // USA A FUNÇÃO AQUI TAMBÉM
+            const fotoUrl = data['Foto (link da foto)'];
             const previewDiv = document.getElementById('previewFotoEdicao');
             const previewImg = document.getElementById('previewImagemEdicao');
             if (fotoUrl) {
