@@ -417,26 +417,49 @@
         let filtrosAtivos = { nome: '', unidade: '', funcao: '', email: '' };
         let nomeFuncionarioAberto = null;
 
-        // FUNÇÃO MÁGICA: Conserta o link da foto, não importa como ele esteja no banco
-        function obterUrlFoto(caminhoFoto) {
-            if (!caminhoFoto) return null;
+        // FUNÇÃO MÁGICA: Conserta o link da foto e busca no Storage
+        async function obterUrlFoto(nomeArquivo) {
+            if (!nomeArquivo) return null;
             
-            // Se o link já está certo, usa ele
-            if (caminhoFoto.startsWith('http') && caminhoFoto.includes('lklqwzdzcuknjsowarvz')) {
-                return caminhoFoto;
+            // Se for link do Google Drive quebrado, ignora
+            if (nomeArquivo.includes('drive_link') || nomeArquivo.startsWith('view?')) {
+                return null;
             }
-            
-            // Se for um link antigo ou estiver incompleto, extrai só o nome do arquivo/pasta
-            let caminhoLimpo = caminhoFoto;
-            if (caminhoFoto.startsWith('http')) {
-                const partes = caminhoFoto.split('/fotos_funcionarios/');
-                if (partes.length > 1) {
-                    caminhoLimpo = partes[1];
+
+            // Se já for um link completo e válido, usa
+            if (nomeArquivo.startsWith('http') && nomeArquivo.includes('lklqwzdzcuknjsowarvz')) {
+                return nomeArquivo;
+            }
+
+            // Extrai apenas o nome do arquivo se o link estiver cheio de lixo (ex: projeto antigo)
+            let apenasNome = nomeArquivo;
+            if (nomeArquivo.startsWith('http')) {
+                const partes = nomeArquivo.split('/');
+                apenasNome = partes[partes.length - 1];
+            }
+
+            // Busca no Storage qual é o caminho real (dentro de qual pasta ele está)
+            try {
+                // Tenta buscar na raiz
+                let { data, error } = await supabaseSistema.storage.from('fotos_funcionarios').list('', { search: apenasNome });
+                if (data && data.length > 0) {
+                    return supabaseSistema.storage.from('fotos_funcionarios').getPublicUrl(data[0].name).data.publicUrl;
                 }
+                
+                // Se não achar na raiz, busca nas pastas conhecidas
+                const pastas = ['sesantabranca_gmail_com', 'profcesarcamargo_gmail_com', 'crecherenatocabral_santabranca_sp_gov_br', 'emeifsylvia_santabranca_sp_gov_br', 'emeiterezinha_santabranca_sp_gov_br'];
+                for (const pasta of pastas) {
+                    let { data: d2 } = await supabaseSistema.storage.from('fotos_funcionarios').list(pasta, { search: apenasNome });
+                    if (d2 && d2.length > 0) {
+                        const caminhoReal = `${pasta}/${d2[0].name}`;
+                        return supabaseSistema.storage.from('fotos_funcionarios').getPublicUrl(caminhoReal).data.publicUrl;
+                    }
+                }
+                return null;
+            } catch (err) {
+                console.error('Erro ao buscar foto:', err);
+                return null;
             }
-            
-            // Monta a URL correta com o ID do projeto novo
-            return `https://lklqwzdzcuknjsowarvz.supabase.co/storage/v1/object/public/fotos_funcionarios/${caminhoLimpo}`;
         }
 
         function podeVerDocumentos() {
@@ -735,9 +758,10 @@
                 let html = `<div class="mb-3 p-2 bg-red-100 rounded-lg text-center font-bold text-red-700">📊 TOTAL: ${data.length} funcionário(s) com laudo de restrição</div>`;
                 html += '<p class="text-xs text-gray-500 text-center mb-3">👆 Clique no funcionário para ver a ficha completa com documentos</p>';
                 html += '<div class="space-y-3">';
-                data.forEach((func, index) => {
+                
+                for (const [index, func] of data.entries()) {
                     const nomeEsc = (func['Nome Completo'] || '').replace(/'/g, "\\'");
-                    const fotoUrl = obterUrlFoto(func['Foto (link da foto)']);
+                    const fotoUrl = await obterUrlFoto(func['Foto (link da foto)']); // Busca assíncrona
                     html += `
                         <div onclick="abrirFichaDoLaudo('${nomeEsc}')" 
                              class="border rounded-lg p-4 hover:bg-red-50 hover:border-red-400 transition cursor-pointer group">
@@ -759,7 +783,7 @@
                             </div>
                         </div>
                     `;
-                });
+                }
                 html += '</div>';
                 listaDiv.innerHTML = html;
             } catch (error) {
@@ -1028,7 +1052,7 @@
                 if (error) throw error;
 
                 funcionariosCarregados = data || [];
-                renderizarFuncionarios();
+                await renderizarFuncionarios(); // Agora é async
                 totalSpan.innerHTML = `${funcionariosCarregados.length} funcionário(s) encontrado(s)`;
 
             } catch (err) {
@@ -1038,9 +1062,9 @@
             }
         }
 
-        function montarCardFuncionario(f) {
+        async function montarCardFuncionario(f) {
             const nomeEsc = (f['Nome Completo'] || '').replace(/'/g, "\\'");
-            const fotoUrl = obterUrlFoto(f['Foto (link da foto)']);
+            const fotoUrl = await obterUrlFoto(f['Foto (link da foto)']);
             const dataNascimento = formatarData(f['Data de Nascimento']);
             
             const btnExcluir = isAdmin 
@@ -1054,13 +1078,19 @@
             return `<div class="border rounded-lg p-4 hover:shadow"><div class="flex justify-between items-start"><div class="flex gap-4">${imgHtml}<div><h3 class="font-bold text-lg">${escaparHtml(f['Nome Completo']) || '-'}</h3><p class="text-gray-600">${escaparHtml(f['Função']) || '-'} | ${escaparHtml(f['Unidade Escolar']) || '-'}</p><p class="text-sm text-gray-500">📧 ${escaparHtml(f['E-mail']) || '-'} | 📱 ${escaparHtml(f['Telefone para Contato']) || '-'} | 🎂 ${dataNascimento}</p></div></div><div class="flex gap-2 flex-wrap"><button onclick='verDetalhes("${nomeEsc}")' class="bg-blue-500 text-white px-3 py-1 rounded">Ver</button><button onclick='abrirEdicao("${nomeEsc}")' class="bg-yellow-500 text-white px-3 py-1 rounded">✏️ Editar</button>${btnExcluir}</div></div></div>`;
         }
 
-        function renderizarFuncionarios() {
+        async function renderizarFuncionarios() {
             const container = document.getElementById('listaFuncionarios');
             if (funcionariosCarregados.length === 0) {
                 container.innerHTML = '<p class="text-center text-gray-500 py-8">Nenhum funcionário encontrado</p>';
                 return;
             }
-            container.innerHTML = funcionariosCarregados.map(montarCardFuncionario).join('');
+            
+            // Monta os cards em paralelo para ser mais rápido, mas respeitando o limite
+            let htmlCards = '';
+            for (const f of funcionariosCarregados) {
+                htmlCards += await montarCardFuncionario(f);
+            }
+            container.innerHTML = htmlCards;
         }
 
         document.getElementById('btnBuscarFunc').onclick = () => {
@@ -1096,7 +1126,7 @@
             if (!data) return;
             
             nomeFuncionarioAberto = nome;
-            const fotoUrl = obterUrlFoto(data['Foto (link da foto)']);
+            const fotoUrl = await obterUrlFoto(data['Foto (link da foto)']);
             const dataNascimento = formatarData(data['Data de Nascimento']);
             
             let documentos = [];
@@ -1171,7 +1201,7 @@
                 documentos = await carregarDocumentos(nomeFuncionarioAberto);
             }
             
-            const fotoUrl = obterUrlFoto(data['Foto (link da foto)']);
+            const fotoUrl = await obterUrlFoto(data['Foto (link da foto)']);
             const dataNascimento = formatarData(data['Data de Nascimento']);
             const hoje = new Date().toLocaleString('pt-BR');
             
@@ -1359,7 +1389,7 @@
                 selectUnidade.value = unidadeValor;
             }
             
-            const fotoUrl = obterUrlFoto(data['Foto (link da foto)']);
+            const fotoUrl = await obterUrlFoto(data['Foto (link da foto)']);
             const previewDiv = document.getElementById('previewFotoEdicao');
             const previewImg = document.getElementById('previewImagemEdicao');
             if (fotoUrl) {
