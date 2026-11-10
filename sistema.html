@@ -39,9 +39,9 @@
         .ficha-pdf .doc-item { display: flex; justify-content: space-between; padding: 6px 8px; border-bottom: 1px dashed #ccc; font-size: 12px; }
         .ficha-pdf .rodape { margin-top: 24px; text-align: center; font-size: 10px; color: #888; border-top: 1px solid #ddd; padding-top: 8px; }
 
-        /* Animação suave para as fotos aparecerem */
-        .foto-funcionario { animation: fadeIn 0.5s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        /* Estilo para imagens que estão carregando */
+        .foto-carregando { background-color: #e5e7eb; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
     </style>
 </head>
 <body class="bg-gray-100 p-8">
@@ -421,6 +421,36 @@
         let filtrosAtivos = { nome: '', unidade: '', funcao: '', email: '' };
         let nomeFuncionarioAberto = null;
 
+        // NOVA FUNÇÃO: Lazy Loading para as fotos dos funcionários
+        // Isso impede que o navegador baixe 300 imagens ao mesmo tempo e tome bloqueio do Supabase
+        function configurarLazyLoading() {
+            const imagens = document.querySelectorAll('img.foto-funcionario[data-src]');
+            
+            if ('IntersectionObserver' in window) {
+                const imageObserver = new IntersectionObserver((entries, observer) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            const img = entry.target;
+                            img.src = img.dataset.src;
+                            img.removeAttribute('data-src');
+                            img.classList.remove('foto-carregando');
+                            imageObserver.unobserve(img);
+                        }
+                    });
+                });
+
+                imagens.forEach(img => {
+                    imageObserver.observe(img);
+                });
+            } else {
+                // Fallback para navegadores antigos
+                imagens.forEach(img => {
+                    img.src = img.dataset.src;
+                    img.removeAttribute('data-src');
+                });
+            }
+        }
+
         function podeVerDocumentos() {
             return isAdmin || emailLogado === 'sesantabranca@gmail.com';
         }
@@ -719,14 +749,14 @@
                 html += '<div class="space-y-3">';
                 data.forEach((func, index) => {
                     const nomeEsc = (func['Nome Completo'] || '').replace(/'/g, "\\'");
-                    const fotoUrl = func['Foto (link da foto)'];
+                    const fotoUrl = func['Foto (link da foto)'] || '';
                     html += `
                         <div onclick="abrirFichaDoLaudo('${nomeEsc}')" 
                              class="border rounded-lg p-4 hover:bg-red-50 hover:border-red-400 transition cursor-pointer group">
                             <div class="flex items-start gap-3">
                                 <div class="bg-red-100 rounded-full w-8 h-8 flex items-center justify-center font-bold text-red-700 flex-shrink-0">${index + 1}</div>
                                 ${fotoUrl ? 
-                                    `<img src="${fotoUrl}" loading="lazy" class="foto-funcionario w-12 h-12 object-cover rounded-full border-2 border-red-300 flex-shrink-0" onerror="this.style.display='none'">` : 
+                                    `<img src="${fotoUrl}" data-src="${fotoUrl}" loading="lazy" class="foto-funcionario foto-carregando w-12 h-12 object-cover rounded-full border-2 border-red-300 flex-shrink-0" onerror="this.style.display='none'">` : 
                                     `<div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0"><span class="text-red-500">📸</span></div>`
                                 }
                                 <div class="flex-1">
@@ -744,6 +774,7 @@
                 });
                 html += '</div>';
                 listaDiv.innerHTML = html;
+                configurarLazyLoading(); // Ativa o lazy loading
             } catch (error) {
                 console.error('Erro:', error);
                 listaDiv.innerHTML = '<div class="text-center py-8"><p class="text-red-500 text-lg">❌ Erro ao carregar lista de funcionários.</p></div>';
@@ -1022,15 +1053,19 @@
 
         function montarCardFuncionario(f) {
             const nomeEsc = (f['Nome Completo'] || '').replace(/'/g, "\\'");
-            const fotoUrl = f['Foto (link da foto)'];
+            const fotoUrl = f['Foto (link da foto)'] || '';
             const dataNascimento = formatarData(f['Data de Nascimento']);
             
             const btnExcluir = isAdmin 
                 ? `<button onclick='excluirFuncionario("${nomeEsc}")' class="bg-red-500 text-white px-3 py-1 rounded">Excluir</button>` 
                 : '';
             
-            // O loading="lazy" foi aplicado aqui para evitar o travamento das imagens
-            return `<div class="border rounded-lg p-4 hover:shadow"><div class="flex justify-between items-start"><div class="flex gap-4">${fotoUrl ? `<img src="${fotoUrl}" loading="lazy" class="foto-funcionario h-16 w-16 object-cover rounded-full" onerror="this.style.display='none'">` : '<div class="h-16 w-16 bg-gray-200 rounded-full flex items-center justify-center"><span class="text-gray-400">📸</span></div>'}<div><h3 class="font-bold text-lg">${escaparHtml(f['Nome Completo']) || '-'}</h3><p class="text-gray-600">${escaparHtml(f['Função']) || '-'} | ${escaparHtml(f['Unidade Escolar']) || '-'}</p><p class="text-sm text-gray-500">📧 ${escaparHtml(f['E-mail']) || '-'} | 📱 ${escaparHtml(f['Telefone para Contato']) || '-'} | 🎂 ${dataNascimento}</p></div></div><div class="flex gap-2 flex-wrap"><button onclick='verDetalhes("${nomeEsc}")' class="bg-blue-500 text-white px-3 py-1 rounded">Ver</button><button onclick='abrirEdicao("${nomeEsc}")' class="bg-yellow-500 text-white px-3 py-1 rounded">✏️ Editar</button>${btnExcluir}</div></div></div>`;
+            // Aqui está o segredo: a imagem só é carregada quando visível
+            const imgHtml = fotoUrl 
+                ? `<img src="" data-src="${fotoUrl}" loading="lazy" class="foto-funcionario foto-carregando h-16 w-16 object-cover rounded-full" onerror="this.src='https://via.placeholder.com/64?text=Erro'">` 
+                : '<div class="h-16 w-16 bg-gray-200 rounded-full flex items-center justify-center"><span class="text-gray-400">📸</span></div>';
+
+            return `<div class="border rounded-lg p-4 hover:shadow"><div class="flex justify-between items-start"><div class="flex gap-4">${imgHtml}<div><h3 class="font-bold text-lg">${escaparHtml(f['Nome Completo']) || '-'}</h3><p class="text-gray-600">${escaparHtml(f['Função']) || '-'} | ${escaparHtml(f['Unidade Escolar']) || '-'}</p><p class="text-sm text-gray-500">📧 ${escaparHtml(f['E-mail']) || '-'} | 📱 ${escaparHtml(f['Telefone para Contato']) || '-'} | 🎂 ${dataNascimento}</p></div></div><div class="flex gap-2 flex-wrap"><button onclick='verDetalhes("${nomeEsc}")' class="bg-blue-500 text-white px-3 py-1 rounded">Ver</button><button onclick='abrirEdicao("${nomeEsc}")' class="bg-yellow-500 text-white px-3 py-1 rounded">✏️ Editar</button>${btnExcluir}</div></div></div>`;
         }
 
         function renderizarFuncionarios() {
@@ -1040,6 +1075,7 @@
                 return;
             }
             container.innerHTML = funcionariosCarregados.map(montarCardFuncionario).join('');
+            configurarLazyLoading(); // ATIVA O LAZY LOADING APÓS RENDERIZAR
         }
 
         document.getElementById('btnBuscarFunc').onclick = () => {
