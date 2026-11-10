@@ -417,7 +417,7 @@
         let filtrosAtivos = { nome: '', unidade: '', funcao: '', email: '' };
         let nomeFuncionarioAberto = null;
 
-        // FUNÇÃO CORRIGIDA: Apenas retorna a URL base, o "onerror" da imagem faz o resto
+        // FUNÇÃO CORRIGIDA (Apenas retorna a URL base)
         function obterUrlFoto(nomeArquivo) {
             if (!nomeArquivo) return null;
             if (nomeArquivo.includes('drive_link') || nomeArquivo.startsWith('view?')) return null;
@@ -726,7 +726,8 @@
                 let html = `<div class="mb-3 p-2 bg-red-100 rounded-lg text-center font-bold text-red-700">📊 TOTAL: ${data.length} funcionário(s) com laudo de restrição</div>`;
                 html += '<p class="text-xs text-gray-500 text-center mb-3">👆 Clique no funcionário para ver a ficha completa com documentos</p>';
                 html += '<div class="space-y-3">';
-                data.forEach((func, index) => {
+                
+                for (const [index, func] of data.entries()) {
                     const nomeEsc = (func['Nome Completo'] || '').replace(/'/g, "\\'");
                     const apenasNome = obterUrlFoto(func['Foto (link da foto)']);
                     const baseUrl = `https://lklqwzdzcuknjsowarvz.supabase.co/storage/v1/object/public/fotos_funcionarios/`;
@@ -763,7 +764,7 @@
                             </div>
                         </div>
                     `;
-                });
+                }
                 html += '</div>';
                 listaDiv.innerHTML = html;
             } catch (error) {
@@ -1032,7 +1033,7 @@
                 if (error) throw error;
 
                 funcionariosCarregados = data || [];
-                renderizarFuncionarios();
+                await renderizarFuncionarios(); // Await adicionado para esperar a fila terminar
                 totalSpan.innerHTML = `${funcionariosCarregados.length} funcionário(s) encontrado(s)`;
 
             } catch (err) {
@@ -1042,43 +1043,52 @@
             }
         }
 
-        function montarCardFuncionario(f) {
-            const nomeEsc = (f['Nome Completo'] || '').replace(/'/g, "\\'");
-            const apenasNome = obterUrlFoto(f['Foto (link da foto)']);
-            const dataNascimento = formatarData(f['Data de Nascimento']);
-            const baseUrl = `https://lklqwzdzcuknjsowarvz.supabase.co/storage/v1/object/public/fotos_funcionarios/`;
-            
-            const btnExcluir = isAdmin 
-                ? `<button onclick='excluirFuncionario("${nomeEsc}")' class="bg-red-500 text-white px-3 py-1 rounded">Excluir</button>` 
-                : '';
-            
-            let imgHtml = '<div class="h-16 w-16 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0"><span class="text-gray-400 text-xl">📸</span></div>';
-            
-            if (apenasNome) {
-                imgHtml = `<div class="h-16 w-16 relative flex-shrink-0">
-                    <img src="${baseUrl}${apenasNome}" loading="lazy" class="h-16 w-16 object-cover rounded-full" 
-                         onerror="
-                            if(!this.dataset.t1){ this.dataset.t1=1; this.src='${baseUrl}sesantabranca_gmail_com/${apenasNome}'; }
-                            else if(!this.dataset.t2){ this.dataset.t2=1; this.src='${baseUrl}profcesarcamargo_gmail_com/${apenasNome}'; }
-                            else if(!this.dataset.t3){ this.dataset.t3=1; this.src='${baseUrl}crecherenatocabral_santabranca_sp_gov_br/${apenasNome}'; }
-                            else if(!this.dataset.t4){ this.dataset.t4=1; this.src='${baseUrl}emeifsylvia_santabranca_sp_gov_br/${apenasNome}'; }
-                            else if(!this.dataset.t5){ this.dataset.t5=1; this.src='${baseUrl}emeiterezinha_santabranca_sp_gov_br/${apenasNome}'; }
-                            else { this.style.display='none'; this.nextElementSibling.style.display='flex'; }
-                         ">
-                    <div class="absolute inset-0 bg-gray-200 rounded-full hidden items-center justify-center"><span class="text-gray-400 text-xl">📸</span></div>
-                </div>`;
-            }
-
-            return `<div class="border rounded-lg p-4 hover:shadow"><div class="flex justify-between items-start"><div class="flex gap-4">${imgHtml}<div><h3 class="font-bold text-lg">${escaparHtml(f['Nome Completo']) || '-'}</h3><p class="text-gray-600">${escaparHtml(f['Função']) || '-'} | ${escaparHtml(f['Unidade Escolar']) || '-'}</p><p class="text-sm text-gray-500">📧 ${escaparHtml(f['E-mail']) || '-'} | 📱 ${escaparHtml(f['Telefone para Contato']) || '-'} | 🎂 ${dataNascimento}</p></div></div><div class="flex gap-2 flex-wrap"><button onclick='verDetalhes("${nomeEsc}")' class="bg-blue-500 text-white px-3 py-1 rounded">Ver</button><button onclick='abrirEdicao("${nomeEsc}")' class="bg-yellow-500 text-white px-3 py-1 rounded">✏️ Editar</button>${btnExcluir}</div></div></div>`;
-        }
-
-        function renderizarFuncionarios() {
+        async function renderizarFuncionarios() {
             const container = document.getElementById('listaFuncionarios');
             if (funcionariosCarregados.length === 0) {
                 container.innerHTML = '<p class="text-center text-gray-500 py-8">Nenhum funcionário encontrado</p>';
                 return;
             }
-            container.innerHTML = funcionariosCarregados.map(montarCardFuncionario).join('');
+            
+            container.innerHTML = ''; // Limpa a tela
+            const baseUrl = `https://lklqwzdzcuknjsowarvz.supabase.co/storage/v1/object/public/fotos_funcionarios/`;
+
+            for (let i = 0; i < funcionariosCarregados.length; i++) {
+                const f = funcionariosCarregados[i];
+                const nomeEsc = (f['Nome Completo'] || '').replace(/'/g, "\\'");
+                const apenasNome = obterUrlFoto(f['Foto (link da foto)']);
+                const dataNascimento = formatarData(f['Data de Nascimento']);
+                
+                const btnExcluir = isAdmin 
+                    ? `<button onclick='excluirFuncionario("${nomeEsc}")' class="bg-red-500 text-white px-3 py-1 rounded">Excluir</button>` 
+                    : '';
+                
+                let imgHtml = '<div class="h-16 w-16 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0"><span class="text-gray-400 text-xl">📸</span></div>';
+                
+                if (apenasNome) {
+                    imgHtml = `<div class="h-16 w-16 relative flex-shrink-0">
+                        <img src="${baseUrl}${apenasNome}" loading="lazy" class="h-16 w-16 object-cover rounded-full" 
+                             onerror="
+                                if(!this.dataset.t1){ this.dataset.t1=1; this.src='${baseUrl}sesantabranca_gmail_com/${apenasNome}'; }
+                                else if(!this.dataset.t2){ this.dataset.t2=1; this.src='${baseUrl}profcesarcamargo_gmail_com/${apenasNome}'; }
+                                else if(!this.dataset.t3){ this.dataset.t3=1; this.src='${baseUrl}crecherenatocabral_santabranca_sp_gov_br/${apenasNome}'; }
+                                else if(!this.dataset.t4){ this.dataset.t4=1; this.src='${baseUrl}emeifsylvia_santabranca_sp_gov_br/${apenasNome}'; }
+                                else if(!this.dataset.t5){ this.dataset.t5=1; this.src='${baseUrl}emeiterezinha_santabranca_sp_gov_br/${apenasNome}'; }
+                                else { this.style.display='none'; this.nextElementSibling.style.display='flex'; }
+                             ">
+                        <div class="absolute inset-0 bg-gray-200 rounded-full hidden items-center justify-center"><span class="text-gray-400 text-xl">📸</span></div>
+                    </div>`;
+                }
+
+                const cardHtml = `<div class="border rounded-lg p-4 hover:shadow mb-4"><div class="flex justify-between items-start"><div class="flex gap-4">${imgHtml}<div><h3 class="font-bold text-lg">${escaparHtml(f['Nome Completo']) || '-'}</h3><p class="text-gray-600">${escaparHtml(f['Função']) || '-'} | ${escaparHtml(f['Unidade Escolar']) || '-'}</p><p class="text-sm text-gray-500">📧 ${escaparHtml(f['E-mail']) || '-'} | 📱 ${escaparHtml(f['Telefone para Contato']) || '-'} | 🎂 ${dataNascimento}</p></div></div><div class="flex gap-2 flex-wrap"><button onclick='verDetalhes("${nomeEsc}")' class="bg-blue-500 text-white px-3 py-1 rounded">Ver</button><button onclick='abrirEdicao("${nomeEsc}")' class="bg-yellow-500 text-white px-3 py-1 rounded">✏️ Editar</button>${btnExcluir}</div></div></div>`;
+                
+                container.insertAdjacentHTML('beforeend', cardHtml);
+
+                // O SEGREDO ESTÁ AQUI: Espera um pouquinho antes de renderizar o próximo card
+                if (i % 5 === 0) {
+                    await new Promise(r => setTimeout(r, 50));
+                }
+            }
         }
 
         document.getElementById('btnBuscarFunc').onclick = () => {
@@ -1210,7 +1220,6 @@
             const baseUrl = `https://lklqwzdzcuknjsowarvz.supabase.co/storage/v1/object/public/fotos_funcionarios/`;
             let fotoUrl = null;
             
-            // Para o PDF, precisamos ter certeza da URL. Vamos tentar achar a imagem para o PDF carregar certo.
             if (apenasNome) {
                 const pastas = ['', 'sesantabranca_gmail_com/', 'profcesarcamargo_gmail_com/', 'crecherenatocabral_santabranca_sp_gov_br/', 'emeifsylvia_santabranca_sp_gov_br/', 'emeiterezinha_santabranca_sp_gov_br/'];
                 for (const pasta of pastas) {
@@ -1218,7 +1227,6 @@
                     await aguardarImagem(testUrl).then(() => {
                         const img = new Image();
                         img.src = testUrl;
-                        // Se a imagem carregar, define como a URL
                         return new Promise(resolve => {
                             img.onload = () => { fotoUrl = testUrl; resolve(); };
                             img.onerror = () => resolve();
