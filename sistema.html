@@ -5,11 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Cadastro de Funcionários - Santa Branca</title>
     
-    <!-- PWA - Android -->
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#2563eb">
-    
-    <!-- PWA - iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Funcionários">
@@ -22,26 +19,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        /* ✅ AJUSTE DE SCROLL GLOBAL */
-        html, body {
-            height: 100%;
-            overflow-y: auto;
-            overflow-x: hidden;
-            margin: 0;
-        }
+        html, body { height: 100%; overflow-y: auto; overflow-x: hidden; margin: 0; }
         body { scroll-behavior: smooth; }
-
         .stat-card { transition: transform 0.2s; }
         .stat-card:hover { transform: translateY(-5px); }
         @media print { .no-print { display: none; } }
-        .pdf-container {
-            position: fixed;
-            left: -10000px;
-            top: 0;
-            width: 800px;
-            background: white;
-            z-index: -1;
-        }
+        .pdf-container { position: fixed; left: -10000px; top: 0; width: 800px; background: white; z-index: -1; }
         .ficha-pdf { font-family: 'Segoe UI', Arial, sans-serif; color: #222; padding: 20px; }
         .ficha-pdf h1 { text-align: center; color: #1e40af; font-size: 22px; margin: 0 0 4px 0; }
         .ficha-pdf h2 { text-align: center; color: #555; font-size: 14px; font-weight: normal; margin: 0 0 20px 0; }
@@ -68,7 +51,6 @@
                         <p class="text-sm text-gray-600">Bem-vindo, <span id="nomeUsuario"></span></p>
                         <p class="text-xs text-blue-600" id="statusAdmin"></p>
                     </div>
-                    <!-- ✅ URL DO LOGO CORRIGIDA PARA O PROJETO NOVO -->
                     <img id="logoSantaBranca" src="https://lklqwzdzcuknjsowarvz.supabase.co/storage/v1/object/public/imagens/Santa%20Branca%20Logo.png" alt="Santa Branca Logo" class="h-16 w-auto object-contain">
                 </div>
                 <div class="flex gap-2">
@@ -125,9 +107,16 @@
                 </div>
             </div>
 
+            <!-- GRÁFICOS -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div class="bg-white rounded-lg shadow p-4"><h3 class="text-lg font-semibold mb-4">📊 Funcionários por Unidade Escolar</h3><canvas id="graficoUnidades" height="200"></canvas></div>
                 <div class="bg-white rounded-lg shadow p-4"><h3 class="text-lg font-semibold mb-4">📊 Funcionários por Cargo/Situação</h3><canvas id="graficoCargos" height="200"></canvas></div>
+            </div>
+            
+            <!-- NOVO GRÁFICO POR FUNÇÃO -->
+            <div class="bg-white rounded-lg shadow p-4 mb-6">
+                <h3 class="text-lg font-semibold mb-4">📊 Funcionários por Função</h3>
+                <canvas id="graficoFuncoes" height="100"></canvas>
             </div>
 
             <div class="bg-white rounded-lg shadow p-4">
@@ -412,9 +401,6 @@
     <div class="pdf-container" id="fichaIndividualPDF"></div>
 
     <script>
-        // ============================================
-        // ⚠️ CONFIGURAÇÃO SUPABASE
-        // ============================================
         const SUPABASE_URL = 'https://lklqwzdzcuknjsowarvz.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_zmY4GOyhHbBVgyAK7vpXhw_8M-Y3XHP';
         
@@ -423,19 +409,19 @@
         let isAdmin = false;
         let graficoUnidades = null;
         let graficoCargos = null;
+        let graficoFuncoes = null;
         let documentosTemp = [];
         let editArquivoSelecionado = null;
 
-        // ============================================
-        // VARIÁVEIS DE ESTADO DA BUSCA (SIMPLIFICADO)
-        // ============================================
         let funcionariosCarregados = [];
         let filtrosAtivos = { nome: '', unidade: '', funcao: '', email: '' };
         let nomeFuncionarioAberto = null;
 
-        // ============================================
-        // FUNÇÕES AUXILIARES
-        // ============================================
+        // REGRA DE ACESSO AOS DOCUMENTOS
+        function podeVerDocumentos() {
+            return isAdmin || emailLogado === 'sesantabranca@gmail.com';
+        }
+
         function formatarData(dataISO) {
             if (!dataISO) return '-';
             const partes = dataISO.split('-');
@@ -485,9 +471,6 @@
             } catch (err) { console.error('Erro ao registrar auditoria:', err); }
         }
 
-        // ============================================
-        // FUNÇÕES DE DOCUMENTOS
-        // ============================================
         async function uploadDocumento(arquivo, nomeFuncionario, tipoDocumento) {
             try {
                 const extensao = arquivo.name.split('.').pop();
@@ -546,9 +529,6 @@
             }
         }
 
-        // ============================================
-        // DOCUMENTOS - CADASTRO
-        // ============================================
         function atualizarListaDocumentosCadastro() {
             const listaDiv = document.getElementById('listaDocumentosCadastro');
             if (documentosTemp.length === 0) {
@@ -608,9 +588,6 @@
             }
         };
 
-        // ============================================
-        // DOCUMENTOS - EDIÇÃO
-        // ============================================
         async function atualizarListaDocumentosEdicao(nomeFuncionario) {
             const listaDiv = document.getElementById('listaDocumentosEdicao');
             if (!nomeFuncionario) {
@@ -626,6 +603,15 @@
             let html = '';
             documentos.forEach(doc => {
                 const dataUpload = new Date(doc.data_upload).toLocaleDateString('pt-BR');
+                // AQUI ESTÁ A REGRA DE RESTRIÇÃO DE VISUALIZAÇÃO PARA O BOTÃO "VER"
+                const btnVer = podeVerDocumentos() 
+                    ? `<a href="${doc.url_arquivo}" target="_blank" class="bg-blue-500 text-white px-3 py-1 rounded text-sm">👁️ Ver</a>`
+                    : `<span class="bg-gray-300 text-gray-500 px-3 py-1 rounded text-sm cursor-not-allowed" title="Acesso restrito">🔒 Restrito</span>`;
+                
+                const btnExcluir = podeVerDocumentos()
+                    ? `<button onclick="excluirDocumentoEdicao('${doc.id}', '${nomeFuncionario.replace(/'/g, "\\'")}')" class="bg-red-500 text-white px-3 py-1 rounded text-sm">🗑️ Excluir</button>`
+                    : '';
+
                 html += `
                     <div class="border rounded p-3 flex justify-between items-center">
                         <div class="flex-1">
@@ -639,8 +625,8 @@
                             </div>
                         </div>
                         <div class="flex gap-2">
-                            <a href="${doc.url_arquivo}" target="_blank" class="bg-blue-500 text-white px-3 py-1 rounded text-sm">👁️ Ver</a>
-                            <button onclick="excluirDocumentoEdicao('${doc.id}', '${nomeFuncionario.replace(/'/g, "\\'")}')" class="bg-red-500 text-white px-3 py-1 rounded text-sm">🗑️ Excluir</button>
+                            ${btnVer}
+                            ${btnExcluir}
                         </div>
                     </div>
                 `;
@@ -649,6 +635,7 @@
         }
 
         window.excluirDocumentoEdicao = async function(documentoId, nomeFuncionario) {
+            if (!podeVerDocumentos()) { alert('Você não tem permissão para excluir documentos.'); return; }
             if (!confirm('Tem certeza que deseja excluir este documento?')) return;
             const sucesso = await excluirDocumento(documentoId);
             if (sucesso) {
@@ -693,9 +680,6 @@
             }
         };
 
-        // ============================================
-        // FUNÇÕES DE MODAL
-        // ============================================
         function fecharModal() {
             document.getElementById('modalDetalhes').classList.add('hidden');
             document.getElementById('modalDetalhes').classList.remove('flex');
@@ -710,9 +694,6 @@
             document.getElementById('modalLaudo').classList.remove('flex');
         }
 
-        // ============================================
-        // LISTAR FUNCIONÁRIOS COM LAUDO
-        // ============================================
         async function listarFuncionariosComLaudo() {
             const modal = document.getElementById('modalLaudo');
             const listaDiv = document.getElementById('listaLaudo');
@@ -743,7 +724,7 @@
                             <div class="flex items-start gap-3">
                                 <div class="bg-red-100 rounded-full w-8 h-8 flex items-center justify-center font-bold text-red-700 flex-shrink-0">${index + 1}</div>
                                 ${fotoUrl ? 
-                                    `<img src="${fotoUrl}" class="w-12 h-12 object-cover rounded-full border-2 border-red-300 flex-shrink-0" onerror="this.style.display='none'">` : 
+                                    `<img src="${fotoUrl}" loading="lazy" class="w-12 h-12 object-cover rounded-full border-2 border-red-300 flex-shrink-0" onerror="this.style.display='none'">` : 
                                     `<div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0"><span class="text-red-500">📸</span></div>`
                                 }
                                 <div class="flex-1">
@@ -774,9 +755,6 @@
 
         document.getElementById('btnVerLaudo').onclick = listarFuncionariosComLaudo;
 
-        // ============================================
-        // NAVEGAÇÃO ENTRE ABAS
-        // ============================================
         const abaDashboard = document.getElementById('abaDashboard');
         const abaCadastro = document.getElementById('abaCadastro');
         const abaBusca = document.getElementById('abaBusca');
@@ -834,9 +812,6 @@
         btnUsuarios.onclick = () => setAba('usuarios');
         btnAuditoria.onclick = () => setAba('auditoria');
 
-        // ============================================
-        // AUTENTICAÇÃO (admins dinâmicos)
-        // ============================================
         async function verificarAuth() {
             const { data: { session } } = await supabaseSistema.auth.getSession();
             if (!session) { window.location.href = 'index.html'; return; }
@@ -877,9 +852,6 @@
             window.location.href = 'index.html'; 
         };
 
-        // ============================================
-        // DASHBOARD
-        // ============================================
         async function carregarDashboard() {
             const { data, error } = await supabaseSistema.from('tblCadastro').select('*');
             if (error) { console.error('Erro ao carregar dashboard:', error); return; }
@@ -934,6 +906,28 @@
                 data: { labels: labelsCargos, datasets: [{ data: dadosCargos, backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec489a'] }] },
                 options: { responsive: true, maintainAspectRatio: true }
             });
+
+            // NOVO GRÁFICO DE FUNÇÕES
+            const funcoes = {};
+            data.forEach(f => {
+                const funcao = f['Função'] || 'Não informada';
+                funcoes[funcao] = (funcoes[funcao] || 0) + 1;
+            });
+            const labelsFuncoes = Object.keys(funcoes);
+            const dadosFuncoes = Object.values(funcoes);
+            
+            if (graficoFuncoes) graficoFuncoes.destroy();
+            const ctxFuncoes = document.getElementById('graficoFuncoes').getContext('2d');
+            graficoFuncoes = new Chart(ctxFuncoes, {
+                type: 'bar', // horizontal bar fica melhor para textos longos
+                data: { labels: labelsFuncoes, datasets: [{ label: 'Quantidade', data: dadosFuncoes, backgroundColor: '#10b981' }] },
+                options: { 
+                    indexAxis: 'y', // Torna o gráfico horizontal
+                    responsive: true, 
+                    maintainAspectRatio: true,
+                    plugins: { legend: { display: false } }
+                }
+            });
             
             const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
             const mesAtual = new Date().getMonth();
@@ -960,9 +954,6 @@
             }
         }
 
-        // ============================================
-        // UPLOAD DE FOTO
-        // ============================================
         async function uploadFoto(arquivo, nomeBase) {
             const { data: { session } } = await supabaseSistema.auth.getSession();
             if (!session) throw new Error('Usuário não autenticado');
@@ -975,9 +966,6 @@
             return urlData.publicUrl;
         }
 
-        // ============================================
-        // BUSCA - NOVA LÓGICA (CARREGA TUDO DE UMA VEZ)
-        // ============================================
         function aplicarFiltrosQuery(query) {
             if (filtrosAtivos.nome) query = query.ilike('"Nome Completo"', `%${filtrosAtivos.nome}%`);
             if (filtrosAtivos.unidade) query = query.ilike('"Unidade Escolar"', `%${filtrosAtivos.unidade}%`);
@@ -1022,7 +1010,8 @@
                 ? `<button onclick='excluirFuncionario("${nomeEsc}")' class="bg-red-500 text-white px-3 py-1 rounded">Excluir</button>` 
                 : '';
             
-            return `<div class="border rounded-lg p-4 hover:shadow"><div class="flex justify-between items-start"><div class="flex gap-4">${fotoUrl ? `<img src="${fotoUrl}" class="h-16 w-16 object-cover rounded-full" onerror="this.style.display='none'">` : '<div class="h-16 w-16 bg-gray-200 rounded-full flex items-center justify-center"><span class="text-gray-400">📸</span></div>'}<div><h3 class="font-bold text-lg">${escaparHtml(f['Nome Completo']) || '-'}</h3><p class="text-gray-600">${escaparHtml(f['Função']) || '-'} | ${escaparHtml(f['Unidade Escolar']) || '-'}</p><p class="text-sm text-gray-500">📧 ${escaparHtml(f['E-mail']) || '-'} | 📱 ${escaparHtml(f['Telefone para Contato']) || '-'} | 🎂 ${dataNascimento}</p></div></div><div class="flex gap-2 flex-wrap"><button onclick='verDetalhes("${nomeEsc}")' class="bg-blue-500 text-white px-3 py-1 rounded">Ver</button><button onclick='abrirEdicao("${nomeEsc}")' class="bg-yellow-500 text-white px-3 py-1 rounded">✏️ Editar</button>${btnExcluir}</div></div></div>`;
+            // ADICIONADO loading="lazy" NA FOTO
+            return `<div class="border rounded-lg p-4 hover:shadow"><div class="flex justify-between items-start"><div class="flex gap-4">${fotoUrl ? `<img src="${fotoUrl}" loading="lazy" class="h-16 w-16 object-cover rounded-full" onerror="this.style.display='none'">` : '<div class="h-16 w-16 bg-gray-200 rounded-full flex items-center justify-center"><span class="text-gray-400">📸</span></div>'}<div><h3 class="font-bold text-lg">${escaparHtml(f['Nome Completo']) || '-'}</h3><p class="text-gray-600">${escaparHtml(f['Função']) || '-'} | ${escaparHtml(f['Unidade Escolar']) || '-'}</p><p class="text-sm text-gray-500">📧 ${escaparHtml(f['E-mail']) || '-'} | 📱 ${escaparHtml(f['Telefone para Contato']) || '-'} | 🎂 ${dataNascimento}</p></div></div><div class="flex gap-2 flex-wrap"><button onclick='verDetalhes("${nomeEsc}")' class="bg-blue-500 text-white px-3 py-1 rounded">Ver</button><button onclick='abrirEdicao("${nomeEsc}")' class="bg-yellow-500 text-white px-3 py-1 rounded">✏️ Editar</button>${btnExcluir}</div></div></div>`;
         }
 
         function renderizarFuncionarios() {
@@ -1034,9 +1023,6 @@
             container.innerHTML = funcionariosCarregados.map(montarCardFuncionario).join('');
         }
 
-        // ============================================
-        // EVENTOS DE BUSCA
-        // ============================================
         document.getElementById('btnBuscarFunc').onclick = () => {
             filtrosAtivos = {
                 nome: document.getElementById('buscaNome').value.trim(),
@@ -1065,9 +1051,6 @@
             carregarTodosFuncionarios();
         };
 
-        // ============================================
-        // VER DETALHES
-        // ============================================
         window.verDetalhes = async function(nome) {
             const { data } = await supabaseSistema.from('tblCadastro').select('*').eq('"Nome Completo"', nome).single();
             if (!data) return;
@@ -1075,11 +1058,15 @@
             nomeFuncionarioAberto = nome;
             const fotoUrl = data['Foto (link da foto)'];
             const dataNascimento = formatarData(data['Data de Nascimento']);
-            const documentos = await carregarDocumentos(nome);
+            
+            let documentos = [];
+            if (podeVerDocumentos()) {
+                documentos = await carregarDocumentos(nome);
+            }
             
             let html = `
                 <div class="md:col-span-1 flex flex-col items-center">
-                    ${fotoUrl ? `<img src="${fotoUrl}" class="w-48 h-48 object-cover rounded-full border-4 border-blue-500 shadow-lg" onerror="this.src='https://via.placeholder.com/192?text=Sem+Foto'">` : `<div class="w-48 h-48 bg-gray-200 rounded-full flex items-center justify-center border-4 border-gray-300"><span class="text-gray-400 text-center">📸<br>Sem foto</span></div>`}
+                    ${fotoUrl ? `<img src="${fotoUrl}" loading="lazy" class="w-48 h-48 object-cover rounded-full border-4 border-blue-500 shadow-lg" onerror="this.src='https://via.placeholder.com/192?text=Sem+Foto'">` : `<div class="w-48 h-48 bg-gray-200 rounded-full flex items-center justify-center border-4 border-gray-300"><span class="text-gray-400 text-center">📸<br>Sem foto</span></div>`}
                     <h3 class="text-xl font-bold mt-4 text-center">${escaparHtml(data['Nome Completo']) || '-'}</h3>
                     <p class="text-gray-600 text-center">${escaparHtml(data['Função']) || '-'}</p>
                 </div>
@@ -1102,22 +1089,27 @@
                     <div class="mt-6 border-t pt-4">
                         <h4 class="text-lg font-semibold mb-3">📄 Documentos (${documentos.length})</h4>
                         <div class="space-y-2">
-                            ${documentos.length > 0 ? documentos.map(doc => {
-                                const dataUpload = new Date(doc.data_upload).toLocaleDateString('pt-BR');
-                                return `
-                                    <div class="border rounded p-3 flex justify-between items-center">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xl">📄</span>
-                                            <div>
-                                                <p class="font-semibold">${escaparHtml(doc.tipo_documento)}</p>
-                                                <p class="text-sm text-gray-600">${escaparHtml(doc.descricao || doc.nome_arquivo)}</p>
-                                                <p class="text-xs text-gray-400">Enviado em: ${dataUpload}</p>
+                            ${!podeVerDocumentos() 
+                                ? `<div class="bg-yellow-50 border border-yellow-200 p-4 rounded text-center text-yellow-700">
+                                    🔒 Acesso restrito. Apenas administradores e a Secretaria podem visualizar os documentos.
+                                   </div>`
+                                : (documentos.length > 0 ? documentos.map(doc => {
+                                    const dataUpload = new Date(doc.data_upload).toLocaleDateString('pt-BR');
+                                    return `
+                                        <div class="border rounded p-3 flex justify-between items-center">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xl">📄</span>
+                                                <div>
+                                                    <p class="font-semibold">${escaparHtml(doc.tipo_documento)}</p>
+                                                    <p class="text-sm text-gray-600">${escaparHtml(doc.descricao || doc.nome_arquivo)}</p>
+                                                    <p class="text-xs text-gray-400">Enviado em: ${dataUpload}</p>
+                                                </div>
                                             </div>
+                                            <a href="${doc.url_arquivo}" target="_blank" class="bg-blue-500 text-white px-3 py-1 rounded text-sm">👁️ Ver</a>
                                         </div>
-                                        <a href="${doc.url_arquivo}" target="_blank" class="bg-blue-500 text-white px-3 py-1 rounded text-sm">👁️ Ver</a>
-                                    </div>
-                                `;
-                            }).join('') : '<p class="text-gray-400 text-sm">Nenhum documento cadastrado.</p>'}
+                                    `;
+                                }).join('') : '<p class="text-gray-400 text-sm">Nenhum documento cadastrado.</p>')
+                            }
                         </div>
                     </div>
                 </div>
@@ -1128,16 +1120,17 @@
             document.getElementById('modalDetalhes').classList.add('flex');
         };
 
-        // ============================================
-        // IMPRIMIR FICHA INDIVIDUAL (PDF)
-        // ============================================
         document.getElementById('btnImprimirFicha').onclick = async () => {
             if (!nomeFuncionarioAberto) { alert('Nenhum funcionário aberto!'); return; }
             
             const { data } = await supabaseSistema.from('tblCadastro').select('*').eq('"Nome Completo"', nomeFuncionarioAberto).single();
             if (!data) { alert('Erro ao carregar dados do funcionário.'); return; }
             
-            const documentos = await carregarDocumentos(nomeFuncionarioAberto);
+            let documentos = [];
+            if (podeVerDocumentos()) {
+                documentos = await carregarDocumentos(nomeFuncionarioAberto);
+            }
+            
             const fotoUrl = data['Foto (link da foto)'];
             const dataNascimento = formatarData(data['Data de Nascimento']);
             const hoje = new Date().toLocaleString('pt-BR');
@@ -1194,6 +1187,7 @@
                         <div style="padding:8px;font-size:12px;border:1px solid #e5e7eb;border-radius:4px;min-height:40px;">${escaparHtml(data['Observações']) || 'Sem observações.'}</div>
                     </div>
                     
+                    ${podeVerDocumentos() ? `
                     <div class="secao">
                         <div class="secao-titulo">📄 DOCUMENTOS ANEXADOS (${documentos.length})</div>
                         ${documentos.length > 0 
@@ -1204,7 +1198,7 @@
                                 </div>
                             `).join('')
                             : '<p style="font-size:12px;color:#888;padding:8px;">Nenhum documento anexado.</p>'}
-                    </div>
+                    </div>` : ''}
                     
                     <div class="rodape">
                         Documento gerado em ${hoje} — Sistema de Cadastro de Funcionários
@@ -1271,9 +1265,6 @@
             }
         };
 
-        // ============================================
-        // EXCLUIR FUNCIONÁRIO (SOMENTE ADMIN)
-        // ============================================
         window.excluirFuncionario = async function(nome) {
             if (!isAdmin) {
                 alert('❌ Apenas administradores podem excluir funcionários!');
@@ -1291,9 +1282,6 @@
             carregarDashboard();
         };
 
-        // ============================================
-        // EDIÇÃO DE FUNCIONÁRIO
-        // ============================================
         window.abrirEdicao = async function(nome) {
             const { data, error } = await supabaseSistema.from('tblCadastro').select('*').eq('"Nome Completo"', nome).single();
             if (error) { alert('Erro ao carregar dados: ' + error.message); return; }
@@ -1316,9 +1304,7 @@
             document.getElementById('editCargoSituacao').value = data['Cargo/Situação'] || '';
             document.getElementById('editObservacoes').value = data['Observações'] || '';
             
-            // Preenche o select de Unidade Escolar (com fallback para cadastros antigos)
             const selectUnidade = document.getElementById('editUnidadeEscolar');
-            // Remove opções antigas de "valor antigo" para não acumular
             Array.from(selectUnidade.options).forEach(opt => {
                 if (opt.dataset.legado === 'true') opt.remove();
             });
@@ -1438,9 +1424,6 @@
             carregarDashboard();
         };
 
-        // ============================================
-        // USUÁRIOS (com is_admin)
-        // ============================================
         async function carregarUsuarios() {
             const { data, error } = await supabaseSistema.from('usuarios_autorizados').select('*').order('nome');
             if (error) { console.error('Erro ao carregar usuários:', error); return; }
@@ -1507,9 +1490,6 @@
             carregarUsuarios();
         };
 
-        // ============================================
-        // AUDITORIA
-        // ============================================
         async function carregarUsuariosDoHistorico() {
             const select = document.getElementById('filtroUsuario');
             try {
@@ -1583,9 +1563,6 @@
             carregarHistorico('', '');
         };
 
-        // ============================================
-        // EXPORTAR — TODOS
-        // ============================================
         document.getElementById('btnExportarExcel').onclick = async () => {
             const { data, error } = await supabaseSistema.from('tblCadastro').select('*').order('"Nome Completo"');
             if (error) { alert('Erro: ' + error.message); return; }
@@ -1600,9 +1577,6 @@
             exportarPDF(data, 'Relatorio_Completo');
         };
 
-        // ============================================
-        // EXPORTAR — RESULTADO ATUAL (com filtros aplicados)
-        // ============================================
         document.getElementById('btnExportarResultadoExcel').onclick = async () => {
             try {
                 let query = supabaseSistema.from('tblCadastro').select('*');
@@ -1721,9 +1695,6 @@
             }
         }
 
-        // ============================================
-        // FOTO - CADASTRO
-        // ============================================
         let arquivoSelecionado = null;
         document.getElementById('uploadFoto').addEventListener('change', (e) => {
             arquivoSelecionado = e.target.files[0];
@@ -1765,9 +1736,6 @@
             }
         });
 
-        // ============================================
-        // CADASTRO - SUBMIT
-        // ============================================
         document.getElementById('formFuncionario').onsubmit = async (e) => {
             e.preventDefault();
             let fotoUrl = document.getElementById('foto').value;
@@ -1822,9 +1790,6 @@
             carregarDashboard();
         };
 
-        // ============================================
-        // INICIALIZAÇÃO
-        // ============================================
         async function init() {
             await verificarAuth();
             setAba('dashboard');
