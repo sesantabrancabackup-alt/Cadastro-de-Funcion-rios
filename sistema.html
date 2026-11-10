@@ -417,49 +417,17 @@
         let filtrosAtivos = { nome: '', unidade: '', funcao: '', email: '' };
         let nomeFuncionarioAberto = null;
 
-        // FUNÇÃO MÁGICA: Conserta o link da foto e busca no Storage
-        async function obterUrlFoto(nomeArquivo) {
+        // FUNÇÃO CORRIGIDA: Apenas retorna a URL base, o "onerror" da imagem faz o resto
+        function obterUrlFoto(nomeArquivo) {
             if (!nomeArquivo) return null;
-            
-            // Se for link do Google Drive quebrado, ignora
-            if (nomeArquivo.includes('drive_link') || nomeArquivo.startsWith('view?')) {
-                return null;
-            }
+            if (nomeArquivo.includes('drive_link') || nomeArquivo.startsWith('view?')) return null;
 
-            // Se já for um link completo e válido, usa
-            if (nomeArquivo.startsWith('http') && nomeArquivo.includes('lklqwzdzcuknjsowarvz')) {
-                return nomeArquivo;
-            }
-
-            // Extrai apenas o nome do arquivo se o link estiver cheio de lixo (ex: projeto antigo)
             let apenasNome = nomeArquivo;
             if (nomeArquivo.startsWith('http')) {
                 const partes = nomeArquivo.split('/');
                 apenasNome = partes[partes.length - 1];
             }
-
-            // Busca no Storage qual é o caminho real (dentro de qual pasta ele está)
-            try {
-                // Tenta buscar na raiz
-                let { data, error } = await supabaseSistema.storage.from('fotos_funcionarios').list('', { search: apenasNome });
-                if (data && data.length > 0) {
-                    return supabaseSistema.storage.from('fotos_funcionarios').getPublicUrl(data[0].name).data.publicUrl;
-                }
-                
-                // Se não achar na raiz, busca nas pastas conhecidas
-                const pastas = ['sesantabranca_gmail_com', 'profcesarcamargo_gmail_com', 'crecherenatocabral_santabranca_sp_gov_br', 'emeifsylvia_santabranca_sp_gov_br', 'emeiterezinha_santabranca_sp_gov_br'];
-                for (const pasta of pastas) {
-                    let { data: d2 } = await supabaseSistema.storage.from('fotos_funcionarios').list(pasta, { search: apenasNome });
-                    if (d2 && d2.length > 0) {
-                        const caminhoReal = `${pasta}/${d2[0].name}`;
-                        return supabaseSistema.storage.from('fotos_funcionarios').getPublicUrl(caminhoReal).data.publicUrl;
-                    }
-                }
-                return null;
-            } catch (err) {
-                console.error('Erro ao buscar foto:', err);
-                return null;
-            }
+            return apenasNome; // Retorna só o nome do arquivo
         }
 
         function podeVerDocumentos() {
@@ -758,19 +726,31 @@
                 let html = `<div class="mb-3 p-2 bg-red-100 rounded-lg text-center font-bold text-red-700">📊 TOTAL: ${data.length} funcionário(s) com laudo de restrição</div>`;
                 html += '<p class="text-xs text-gray-500 text-center mb-3">👆 Clique no funcionário para ver a ficha completa com documentos</p>';
                 html += '<div class="space-y-3">';
-                
-                for (const [index, func] of data.entries()) {
+                data.forEach((func, index) => {
                     const nomeEsc = (func['Nome Completo'] || '').replace(/'/g, "\\'");
-                    const fotoUrl = await obterUrlFoto(func['Foto (link da foto)']); // Busca assíncrona
+                    const apenasNome = obterUrlFoto(func['Foto (link da foto)']);
+                    const baseUrl = `https://lklqwzdzcuknjsowarvz.supabase.co/storage/v1/object/public/fotos_funcionarios/`;
+                    
+                    let imgHtml = '<div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0"><span class="text-red-500">📸</span></div>';
+                    if (apenasNome) {
+                        imgHtml = `<div class="w-12 h-12 relative flex-shrink-0">
+                            <img src="${baseUrl}${apenasNome}" loading="lazy" class="w-12 h-12 object-cover rounded-full border-2 border-red-300" 
+                                onerror="
+                                    if(!this.dataset.t1){ this.dataset.t1=1; this.src='${baseUrl}sesantabranca_gmail_com/${apenasNome}'; }
+                                    else if(!this.dataset.t2){ this.dataset.t2=1; this.src='${baseUrl}profcesarcamargo_gmail_com/${apenasNome}'; }
+                                    else if(!this.dataset.t3){ this.dataset.t3=1; this.src='${baseUrl}crecherenatocabral_santabranca_sp_gov_br/${apenasNome}'; }
+                                    else { this.style.display='none'; this.nextElementSibling.style.display='flex'; }
+                                ">
+                            <div class="absolute inset-0 bg-red-100 rounded-full hidden items-center justify-center"><span class="text-red-500">📸</span></div>
+                        </div>`;
+                    }
+
                     html += `
                         <div onclick="abrirFichaDoLaudo('${nomeEsc}')" 
                              class="border rounded-lg p-4 hover:bg-red-50 hover:border-red-400 transition cursor-pointer group">
                             <div class="flex items-start gap-3">
                                 <div class="bg-red-100 rounded-full w-8 h-8 flex items-center justify-center font-bold text-red-700 flex-shrink-0">${index + 1}</div>
-                                ${fotoUrl ? 
-                                    `<img src="${fotoUrl}" loading="lazy" class="w-12 h-12 object-cover rounded-full border-2 border-red-300 flex-shrink-0" onerror="this.style.display='none'">` : 
-                                    `<div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0"><span class="text-red-500">📸</span></div>`
-                                }
+                                ${imgHtml}
                                 <div class="flex-1">
                                     <div class="font-bold text-gray-800 text-lg group-hover:text-red-700 flex items-center gap-2">
                                         ${escaparHtml(func['Nome Completo']) || '-'}
@@ -783,7 +763,7 @@
                             </div>
                         </div>
                     `;
-                }
+                });
                 html += '</div>';
                 listaDiv.innerHTML = html;
             } catch (error) {
@@ -1052,7 +1032,7 @@
                 if (error) throw error;
 
                 funcionariosCarregados = data || [];
-                await renderizarFuncionarios(); // Agora é async
+                renderizarFuncionarios();
                 totalSpan.innerHTML = `${funcionariosCarregados.length} funcionário(s) encontrado(s)`;
 
             } catch (err) {
@@ -1062,35 +1042,43 @@
             }
         }
 
-        async function montarCardFuncionario(f) {
+        function montarCardFuncionario(f) {
             const nomeEsc = (f['Nome Completo'] || '').replace(/'/g, "\\'");
-            const fotoUrl = await obterUrlFoto(f['Foto (link da foto)']);
+            const apenasNome = obterUrlFoto(f['Foto (link da foto)']);
             const dataNascimento = formatarData(f['Data de Nascimento']);
+            const baseUrl = `https://lklqwzdzcuknjsowarvz.supabase.co/storage/v1/object/public/fotos_funcionarios/`;
             
             const btnExcluir = isAdmin 
                 ? `<button onclick='excluirFuncionario("${nomeEsc}")' class="bg-red-500 text-white px-3 py-1 rounded">Excluir</button>` 
                 : '';
             
-            const imgHtml = fotoUrl 
-                ? `<div class="h-16 w-16 relative flex-shrink-0"><img src="${fotoUrl}" loading="lazy" class="h-16 w-16 object-cover rounded-full" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="absolute inset-0 bg-gray-200 rounded-full hidden items-center justify-center"><span class="text-gray-400 text-xl">📸</span></div></div>` 
-                : '<div class="h-16 w-16 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0"><span class="text-gray-400 text-xl">📸</span></div>';
+            let imgHtml = '<div class="h-16 w-16 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0"><span class="text-gray-400 text-xl">📸</span></div>';
+            
+            if (apenasNome) {
+                imgHtml = `<div class="h-16 w-16 relative flex-shrink-0">
+                    <img src="${baseUrl}${apenasNome}" loading="lazy" class="h-16 w-16 object-cover rounded-full" 
+                         onerror="
+                            if(!this.dataset.t1){ this.dataset.t1=1; this.src='${baseUrl}sesantabranca_gmail_com/${apenasNome}'; }
+                            else if(!this.dataset.t2){ this.dataset.t2=1; this.src='${baseUrl}profcesarcamargo_gmail_com/${apenasNome}'; }
+                            else if(!this.dataset.t3){ this.dataset.t3=1; this.src='${baseUrl}crecherenatocabral_santabranca_sp_gov_br/${apenasNome}'; }
+                            else if(!this.dataset.t4){ this.dataset.t4=1; this.src='${baseUrl}emeifsylvia_santabranca_sp_gov_br/${apenasNome}'; }
+                            else if(!this.dataset.t5){ this.dataset.t5=1; this.src='${baseUrl}emeiterezinha_santabranca_sp_gov_br/${apenasNome}'; }
+                            else { this.style.display='none'; this.nextElementSibling.style.display='flex'; }
+                         ">
+                    <div class="absolute inset-0 bg-gray-200 rounded-full hidden items-center justify-center"><span class="text-gray-400 text-xl">📸</span></div>
+                </div>`;
+            }
 
             return `<div class="border rounded-lg p-4 hover:shadow"><div class="flex justify-between items-start"><div class="flex gap-4">${imgHtml}<div><h3 class="font-bold text-lg">${escaparHtml(f['Nome Completo']) || '-'}</h3><p class="text-gray-600">${escaparHtml(f['Função']) || '-'} | ${escaparHtml(f['Unidade Escolar']) || '-'}</p><p class="text-sm text-gray-500">📧 ${escaparHtml(f['E-mail']) || '-'} | 📱 ${escaparHtml(f['Telefone para Contato']) || '-'} | 🎂 ${dataNascimento}</p></div></div><div class="flex gap-2 flex-wrap"><button onclick='verDetalhes("${nomeEsc}")' class="bg-blue-500 text-white px-3 py-1 rounded">Ver</button><button onclick='abrirEdicao("${nomeEsc}")' class="bg-yellow-500 text-white px-3 py-1 rounded">✏️ Editar</button>${btnExcluir}</div></div></div>`;
         }
 
-        async function renderizarFuncionarios() {
+        function renderizarFuncionarios() {
             const container = document.getElementById('listaFuncionarios');
             if (funcionariosCarregados.length === 0) {
                 container.innerHTML = '<p class="text-center text-gray-500 py-8">Nenhum funcionário encontrado</p>';
                 return;
             }
-            
-            // Monta os cards em paralelo para ser mais rápido, mas respeitando o limite
-            let htmlCards = '';
-            for (const f of funcionariosCarregados) {
-                htmlCards += await montarCardFuncionario(f);
-            }
-            container.innerHTML = htmlCards;
+            container.innerHTML = funcionariosCarregados.map(montarCardFuncionario).join('');
         }
 
         document.getElementById('btnBuscarFunc').onclick = () => {
@@ -1126,7 +1114,8 @@
             if (!data) return;
             
             nomeFuncionarioAberto = nome;
-            const fotoUrl = await obterUrlFoto(data['Foto (link da foto)']);
+            const apenasNome = obterUrlFoto(data['Foto (link da foto)']);
+            const baseUrl = `https://lklqwzdzcuknjsowarvz.supabase.co/storage/v1/object/public/fotos_funcionarios/`;
             const dataNascimento = formatarData(data['Data de Nascimento']);
             
             let documentos = [];
@@ -1134,9 +1123,25 @@
                 documentos = await carregarDocumentos(nome);
             }
             
+            let imgHtml = `<div class="w-48 h-48 bg-gray-200 rounded-full flex items-center justify-center border-4 border-gray-300"><span class="text-gray-400 text-center">📸<br>Sem foto</span></div>`;
+            if (apenasNome) {
+                imgHtml = `<div class="w-48 h-48 relative">
+                    <img src="${baseUrl}${apenasNome}" class="w-48 h-48 object-cover rounded-full border-4 border-blue-500 shadow-lg" 
+                         onerror="
+                            if(!this.dataset.t1){ this.dataset.t1=1; this.src='${baseUrl}sesantabranca_gmail_com/${apenasNome}'; }
+                            else if(!this.dataset.t2){ this.dataset.t2=1; this.src='${baseUrl}profcesarcamargo_gmail_com/${apenasNome}'; }
+                            else if(!this.dataset.t3){ this.dataset.t3=1; this.src='${baseUrl}crecherenatocabral_santabranca_sp_gov_br/${apenasNome}'; }
+                            else if(!this.dataset.t4){ this.dataset.t4=1; this.src='${baseUrl}emeifsylvia_santabranca_sp_gov_br/${apenasNome}'; }
+                            else if(!this.dataset.t5){ this.dataset.t5=1; this.src='${baseUrl}emeiterezinha_santabranca_sp_gov_br/${apenasNome}'; }
+                            else { this.style.display='none'; this.nextElementSibling.style.display='flex'; }
+                         ">
+                    <div class="absolute inset-0 bg-gray-200 rounded-full hidden items-center justify-center border-4 border-gray-300"><span class="text-gray-400 text-center">📸<br>Sem foto</span></div>
+                </div>`;
+            }
+
             let html = `
                 <div class="md:col-span-1 flex flex-col items-center">
-                    ${fotoUrl ? `<div class="w-48 h-48 relative"><img src="${fotoUrl}" class="w-48 h-48 object-cover rounded-full border-4 border-blue-500 shadow-lg" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="absolute inset-0 bg-gray-200 rounded-full hidden items-center justify-center border-4 border-gray-300"><span class="text-gray-400 text-center">📸<br>Sem foto</span></div></div>` : `<div class="w-48 h-48 bg-gray-200 rounded-full flex items-center justify-center border-4 border-gray-300"><span class="text-gray-400 text-center">📸<br>Sem foto</span></div>`}
+                    ${imgHtml}
                     <h3 class="text-xl font-bold mt-4 text-center">${escaparHtml(data['Nome Completo']) || '-'}</h3>
                     <p class="text-gray-600 text-center">${escaparHtml(data['Função']) || '-'}</p>
                 </div>
@@ -1201,7 +1206,28 @@
                 documentos = await carregarDocumentos(nomeFuncionarioAberto);
             }
             
-            const fotoUrl = await obterUrlFoto(data['Foto (link da foto)']);
+            const apenasNome = obterUrlFoto(data['Foto (link da foto)']);
+            const baseUrl = `https://lklqwzdzcuknjsowarvz.supabase.co/storage/v1/object/public/fotos_funcionarios/`;
+            let fotoUrl = null;
+            
+            // Para o PDF, precisamos ter certeza da URL. Vamos tentar achar a imagem para o PDF carregar certo.
+            if (apenasNome) {
+                const pastas = ['', 'sesantabranca_gmail_com/', 'profcesarcamargo_gmail_com/', 'crecherenatocabral_santabranca_sp_gov_br/', 'emeifsylvia_santabranca_sp_gov_br/', 'emeiterezinha_santabranca_sp_gov_br/'];
+                for (const pasta of pastas) {
+                    const testUrl = `${baseUrl}${pasta}${apenasNome}`;
+                    await aguardarImagem(testUrl).then(() => {
+                        const img = new Image();
+                        img.src = testUrl;
+                        // Se a imagem carregar, define como a URL
+                        return new Promise(resolve => {
+                            img.onload = () => { fotoUrl = testUrl; resolve(); };
+                            img.onerror = () => resolve();
+                        });
+                    });
+                    if (fotoUrl) break;
+                }
+            }
+
             const dataNascimento = formatarData(data['Data de Nascimento']);
             const hoje = new Date().toLocaleString('pt-BR');
             
@@ -1389,11 +1415,21 @@
                 selectUnidade.value = unidadeValor;
             }
             
-            const fotoUrl = await obterUrlFoto(data['Foto (link da foto)']);
+            const apenasNome = obterUrlFoto(data['Foto (link da foto)']);
+            const baseUrl = `https://lklqwzdzcuknjsowarvz.supabase.co/storage/v1/object/public/fotos_funcionarios/`;
             const previewDiv = document.getElementById('previewFotoEdicao');
             const previewImg = document.getElementById('previewImagemEdicao');
-            if (fotoUrl) {
-                previewImg.src = fotoUrl;
+            
+            if (apenasNome) {
+                previewImg.src = `${baseUrl}${apenasNome}`;
+                previewImg.onerror = function() {
+                    if(!this.dataset.t1){ this.dataset.t1=1; this.src=`${baseUrl}sesantabranca_gmail_com/${apenasNome}`; }
+                    else if(!this.dataset.t2){ this.dataset.t2=1; this.src=`${baseUrl}profcesarcamargo_gmail_com/${apenasNome}`; }
+                    else if(!this.dataset.t3){ this.dataset.t3=1; this.src=`${baseUrl}crecherenatocabral_santabranca_sp_gov_br/${apenasNome}`; }
+                    else if(!this.dataset.t4){ this.dataset.t4=1; this.src=`${baseUrl}emeifsylvia_santabranca_sp_gov_br/${apenasNome}`; }
+                    else if(!this.dataset.t5){ this.dataset.t5=1; this.src=`${baseUrl}emeiterezinha_santabranca_sp_gov_br/${apenasNome}`; }
+                    else { previewDiv.classList.add('hidden'); }
+                };
                 previewDiv.classList.remove('hidden');
             } else {
                 previewDiv.classList.add('hidden');
