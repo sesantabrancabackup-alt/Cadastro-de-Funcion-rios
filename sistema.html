@@ -5,11 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Cadastro de Funcionários - Santa Branca</title>
     
-    <!-- PWA - Android -->
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#2563eb">
-    
-    <!-- PWA - iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Funcionários">
@@ -110,13 +107,11 @@
                 </div>
             </div>
 
-            <!-- GRÁFICOS (Unidade e Cargo lado a lado) -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div class="bg-white rounded-lg shadow p-4"><h3 class="text-lg font-semibold mb-4">📊 Funcionários por Unidade Escolar</h3><canvas id="graficoUnidades" height="200"></canvas></div>
                 <div class="bg-white rounded-lg shadow p-4"><h3 class="text-lg font-semibold mb-4">📊 Funcionários por Cargo/Situação</h3><canvas id="graficoCargos" height="200"></canvas></div>
             </div>
             
-            <!-- NOVO GRÁFICO POR FUNÇÃO (Ocupando largura total e mais alto) -->
             <div class="bg-white rounded-lg shadow p-4 mb-6 w-full">
                 <h3 class="text-lg font-semibold mb-4">📊 Funcionários por Função</h3>
                 <div style="position: relative; height: 600px; width: 100%;">
@@ -910,7 +905,6 @@
                 options: { responsive: true, maintainAspectRatio: true }
             });
 
-            // NOVO GRÁFICO DE FUNÇÕES (Ajustado para tela cheia e nomes visíveis)
             const funcoes = {};
             data.forEach(f => {
                 const funcao = f['Função'] || 'Não informada';
@@ -1031,6 +1025,7 @@
                 ? `<button onclick='excluirFuncionario("${nomeEsc}")' class="bg-red-500 text-white px-3 py-1 rounded">Excluir</button>` 
                 : '';
             
+            // O loading="lazy" foi aplicado aqui para evitar o travamento das imagens
             return `<div class="border rounded-lg p-4 hover:shadow"><div class="flex justify-between items-start"><div class="flex gap-4">${fotoUrl ? `<img src="${fotoUrl}" loading="lazy" class="h-16 w-16 object-cover rounded-full" onerror="this.style.display='none'">` : '<div class="h-16 w-16 bg-gray-200 rounded-full flex items-center justify-center"><span class="text-gray-400">📸</span></div>'}<div><h3 class="font-bold text-lg">${escaparHtml(f['Nome Completo']) || '-'}</h3><p class="text-gray-600">${escaparHtml(f['Função']) || '-'} | ${escaparHtml(f['Unidade Escolar']) || '-'}</p><p class="text-sm text-gray-500">📧 ${escaparHtml(f['E-mail']) || '-'} | 📱 ${escaparHtml(f['Telefone para Contato']) || '-'} | 🎂 ${dataNascimento}</p></div></div><div class="flex gap-2 flex-wrap"><button onclick='verDetalhes("${nomeEsc}")' class="bg-blue-500 text-white px-3 py-1 rounded">Ver</button><button onclick='abrirEdicao("${nomeEsc}")' class="bg-yellow-500 text-white px-3 py-1 rounded">✏️ Editar</button>${btnExcluir}</div></div></div>`;
         }
 
@@ -1086,7 +1081,7 @@
             
             let html = `
                 <div class="md:col-span-1 flex flex-col items-center">
-                    ${fotoUrl ? `<img src="${fotoUrl}" loading="lazy" class="w-48 h-48 object-cover rounded-full border-4 border-blue-500 shadow-lg" onerror="this.src='https://via.placeholder.com/192?text=Sem+Foto'">` : `<div class="w-48 h-48 bg-gray-200 rounded-full flex items-center justify-center border-4 border-gray-300"><span class="text-gray-400 text-center">📸<br>Sem foto</span></div>`}
+                    ${fotoUrl ? `<img src="${fotoUrl}" class="w-48 h-48 object-cover rounded-full border-4 border-blue-500 shadow-lg" onerror="this.src='https://via.placeholder.com/192?text=Sem+Foto'">` : `<div class="w-48 h-48 bg-gray-200 rounded-full flex items-center justify-center border-4 border-gray-300"><span class="text-gray-400 text-center">📸<br>Sem foto</span></div>`}
                     <h3 class="text-xl font-bold mt-4 text-center">${escaparHtml(data['Nome Completo']) || '-'}</h3>
                     <p class="text-gray-600 text-center">${escaparHtml(data['Função']) || '-'}</p>
                 </div>
