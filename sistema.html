@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Cadastro de Funcionários - Santa Branca</title>
     
+    <!-- PWA - Android -->
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#2563eb">
+    
+    <!-- PWA - iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Funcionários">
@@ -107,16 +110,18 @@
                 </div>
             </div>
 
-            <!-- GRÁFICOS -->
+            <!-- GRÁFICOS (Unidade e Cargo lado a lado) -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div class="bg-white rounded-lg shadow p-4"><h3 class="text-lg font-semibold mb-4">📊 Funcionários por Unidade Escolar</h3><canvas id="graficoUnidades" height="200"></canvas></div>
                 <div class="bg-white rounded-lg shadow p-4"><h3 class="text-lg font-semibold mb-4">📊 Funcionários por Cargo/Situação</h3><canvas id="graficoCargos" height="200"></canvas></div>
             </div>
             
-            <!-- NOVO GRÁFICO POR FUNÇÃO -->
-            <div class="bg-white rounded-lg shadow p-4 mb-6">
+            <!-- NOVO GRÁFICO POR FUNÇÃO (Ocupando largura total e mais alto) -->
+            <div class="bg-white rounded-lg shadow p-4 mb-6 w-full">
                 <h3 class="text-lg font-semibold mb-4">📊 Funcionários por Função</h3>
-                <canvas id="graficoFuncoes" height="100"></canvas>
+                <div style="position: relative; height: 600px; width: 100%;">
+                    <canvas id="graficoFuncoes"></canvas>
+                </div>
             </div>
 
             <div class="bg-white rounded-lg shadow p-4">
@@ -417,7 +422,6 @@
         let filtrosAtivos = { nome: '', unidade: '', funcao: '', email: '' };
         let nomeFuncionarioAberto = null;
 
-        // REGRA DE ACESSO AOS DOCUMENTOS
         function podeVerDocumentos() {
             return isAdmin || emailLogado === 'sesantabranca@gmail.com';
         }
@@ -603,7 +607,6 @@
             let html = '';
             documentos.forEach(doc => {
                 const dataUpload = new Date(doc.data_upload).toLocaleDateString('pt-BR');
-                // AQUI ESTÁ A REGRA DE RESTRIÇÃO DE VISUALIZAÇÃO PARA O BOTÃO "VER"
                 const btnVer = podeVerDocumentos() 
                     ? `<a href="${doc.url_arquivo}" target="_blank" class="bg-blue-500 text-white px-3 py-1 rounded text-sm">👁️ Ver</a>`
                     : `<span class="bg-gray-300 text-gray-500 px-3 py-1 rounded text-sm cursor-not-allowed" title="Acesso restrito">🔒 Restrito</span>`;
@@ -907,7 +910,7 @@
                 options: { responsive: true, maintainAspectRatio: true }
             });
 
-            // NOVO GRÁFICO DE FUNÇÕES
+            // NOVO GRÁFICO DE FUNÇÕES (Ajustado para tela cheia e nomes visíveis)
             const funcoes = {};
             data.forEach(f => {
                 const funcao = f['Função'] || 'Não informada';
@@ -919,13 +922,31 @@
             if (graficoFuncoes) graficoFuncoes.destroy();
             const ctxFuncoes = document.getElementById('graficoFuncoes').getContext('2d');
             graficoFuncoes = new Chart(ctxFuncoes, {
-                type: 'bar', // horizontal bar fica melhor para textos longos
+                type: 'bar', 
                 data: { labels: labelsFuncoes, datasets: [{ label: 'Quantidade', data: dadosFuncoes, backgroundColor: '#10b981' }] },
                 options: { 
-                    indexAxis: 'y', // Torna o gráfico horizontal
+                    indexAxis: 'y', 
                     responsive: true, 
-                    maintainAspectRatio: true,
-                    plugins: { legend: { display: false } }
+                    maintainAspectRatio: false, 
+                    plugins: { 
+                        legend: { display: false } 
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                autoSkip: false,
+                                font: { size: 11 }
+                            }
+                        },
+                        x: {
+                            beginAtZero: true
+                        }
+                    },
+                    layout: {
+                        padding: {
+                            right: 20 
+                        }
+                    }
                 }
             });
             
@@ -1010,7 +1031,6 @@
                 ? `<button onclick='excluirFuncionario("${nomeEsc}")' class="bg-red-500 text-white px-3 py-1 rounded">Excluir</button>` 
                 : '';
             
-            // ADICIONADO loading="lazy" NA FOTO
             return `<div class="border rounded-lg p-4 hover:shadow"><div class="flex justify-between items-start"><div class="flex gap-4">${fotoUrl ? `<img src="${fotoUrl}" loading="lazy" class="h-16 w-16 object-cover rounded-full" onerror="this.style.display='none'">` : '<div class="h-16 w-16 bg-gray-200 rounded-full flex items-center justify-center"><span class="text-gray-400">📸</span></div>'}<div><h3 class="font-bold text-lg">${escaparHtml(f['Nome Completo']) || '-'}</h3><p class="text-gray-600">${escaparHtml(f['Função']) || '-'} | ${escaparHtml(f['Unidade Escolar']) || '-'}</p><p class="text-sm text-gray-500">📧 ${escaparHtml(f['E-mail']) || '-'} | 📱 ${escaparHtml(f['Telefone para Contato']) || '-'} | 🎂 ${dataNascimento}</p></div></div><div class="flex gap-2 flex-wrap"><button onclick='verDetalhes("${nomeEsc}")' class="bg-blue-500 text-white px-3 py-1 rounded">Ver</button><button onclick='abrirEdicao("${nomeEsc}")' class="bg-yellow-500 text-white px-3 py-1 rounded">✏️ Editar</button>${btnExcluir}</div></div></div>`;
         }
 
