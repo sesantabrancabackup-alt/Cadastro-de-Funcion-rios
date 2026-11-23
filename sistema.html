@@ -417,12 +417,6 @@
         let filtrosAtivos = { nome: '', unidade: '', funcao: '', email: '' };
         let nomeFuncionarioAberto = null;
 
-        // =====================================================================
-        // ✅ FUNÇÃO CORRIGIDA — preserva a pasta original da URL do Supabase
-        // Antes ela retornava só o nome do arquivo (perdia a pasta),
-        // o que quebrava o carregamento para usuários como "Transporte Escolar"
-        // cuja pasta não estava na lista fixa de fallback.
-        // =====================================================================
         function obterUrlFoto(nomeArquivo) {
             if (!nomeArquivo) return null;
             if (nomeArquivo.includes('drive_link') || nomeArquivo.startsWith('view?')) return null;
