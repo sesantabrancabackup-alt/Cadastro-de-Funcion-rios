@@ -417,17 +417,25 @@
         let filtrosAtivos = { nome: '', unidade: '', funcao: '', email: '' };
         let nomeFuncionarioAberto = null;
 
-        // FUNÇÃO CORRIGIDA (Apenas retorna a URL base)
+        // =====================================================================
+        // ✅ FUNÇÃO CORRIGIDA — preserva a pasta original da URL do Supabase
+        // Antes ela retornava só o nome do arquivo (perdia a pasta),
+        // o que quebrava o carregamento para usuários como "Transporte Escolar"
+        // cuja pasta não estava na lista fixa de fallback.
+        // =====================================================================
         function obterUrlFoto(nomeArquivo) {
             if (!nomeArquivo) return null;
             if (nomeArquivo.includes('drive_link') || nomeArquivo.startsWith('view?')) return null;
 
-            let apenasNome = nomeArquivo;
             if (nomeArquivo.startsWith('http')) {
-                const partes = nomeArquivo.split('/');
-                apenasNome = partes[partes.length - 1];
+                // Extrai "pasta/arquivo.jpg" da URL pública do Supabase Storage
+                const match = nomeArquivo.match(/fotos_funcionarios\/(.+)$/);
+                if (match) return match[1];
+                return null; // URL externa (ex.: Google Drive) — não é foto do bucket
             }
-            return apenasNome; // Retorna só o nome do arquivo
+
+            // Já é apenas o nome do arquivo (dados antigos) — mantém fallback
+            return nomeArquivo;
         }
 
         function podeVerDocumentos() {
@@ -1033,7 +1041,7 @@
                 if (error) throw error;
 
                 funcionariosCarregados = data || [];
-                await renderizarFuncionarios(); // Await adicionado para esperar a fila terminar
+                await renderizarFuncionarios();
                 totalSpan.innerHTML = `${funcionariosCarregados.length} funcionário(s) encontrado(s)`;
 
             } catch (err) {
@@ -1050,7 +1058,7 @@
                 return;
             }
             
-            container.innerHTML = ''; // Limpa a tela
+            container.innerHTML = '';
             const baseUrl = `https://lklqwzdzcuknjsowarvz.supabase.co/storage/v1/object/public/fotos_funcionarios/`;
 
             for (let i = 0; i < funcionariosCarregados.length; i++) {
@@ -1084,7 +1092,6 @@
                 
                 container.insertAdjacentHTML('beforeend', cardHtml);
 
-                // O SEGREDO ESTÁ AQUI: Espera um pouquinho antes de renderizar o próximo card
                 if (i % 5 === 0) {
                     await new Promise(r => setTimeout(r, 50));
                 }
